@@ -1,0 +1,6 @@
+{
+    "lista_menu1"{
+        "prefix": "menu",
+        "body": "<h1>Hola, $1, como estas </hl>"
+    }
+}
