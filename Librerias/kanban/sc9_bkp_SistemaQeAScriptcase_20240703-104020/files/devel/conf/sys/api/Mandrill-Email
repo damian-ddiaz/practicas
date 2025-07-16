@@ -1,0 +1,1 @@
+a:5:{s:4:"name";s:16:"Mandrill - Email";s:3:"mod";s:3:"sys";s:4:"type";s:5:"email";s:7:"gateway";s:8:"mandrill";s:8:"settings";a:3:{s:10:"from_email";s:20:"teste@scriptcase.net";s:9:"from_name";s:10:"Scriptcase";s:7:"api_key";s:25:"432sdH45HUjkVjtG334qRbHFw";}}

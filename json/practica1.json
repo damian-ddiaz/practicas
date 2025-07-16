@@ -1,0 +1,20 @@
+[
+    {
+        "nombre":  "Damian",
+        "Apellido":  "Damian",
+        "edad":  49,
+        "equipos" : ["ASporting Club", 
+                    "Manchester",
+                    "Real Madrid",
+                    "Juventus"]
+    },
+    {
+        "nombre":  "Leonel",
+        "Apellido":  "Messi",
+        "edad":  49,
+        "equipos" : ["newels Old Boys", 
+                    "FC Barcelona",
+                    "PSG"]
+    }
+
+]

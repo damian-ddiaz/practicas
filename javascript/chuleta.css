@@ -1,0 +1,38 @@
+<style>
+/*Bloque Importes $*/		  
+#id_read_on_color_1{/*Label*/
+    background-color: <?php echo ($back_color); ?>; /* Nuevo: Color de fondo */
+}			
+</style>
+
+
+
+
+<style>
+.kanban-board-header{
+
+}
+.<?php echo $id_unico; ?>{
+        background-color: <?php echo $color; ?>; /* Color de fondo del encabezado */
+}
+
+</style>
+
+
+$var_color = {color};
+echo 'color'.$var_color.'<br>';
+// Verifica si el valor del campo 'color' es válido
+if (!empty($var_color)) {
+    // Genera el código JavaScript para aplicar el color de fondo
+    echo "<script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var campoColor = document.getElementById('id_sc_field_color');
+            if (campoColor) {
+                campoColor.style.backgroundColor = '$var_color';
+            }
+        });
+    </script>";
+}
+
+
+

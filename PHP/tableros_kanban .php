@@ -1,0 +1,58 @@
+<?php
+// Iniciar el código HTML
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Kanban con jKanban en Scriptcase</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jkanban/1.4.0/jkanban.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #myKanban {
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="myKanban"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jkanban/1.4.0/jkanban.min.js"></script>
+<script>
+    var kanban = new jKanban({
+        element: '#myKanban',
+        boards: [
+            {
+                id: 'board1',
+                title: 'Por Hacer',
+                dragTo: 'board2',
+                cards: [
+                    { id: 'task1', title: 'Tarea 1' },
+                    { id: 'task2', title: 'Tarea 2' }
+                ]
+            },
+            {
+                id: 'board2',
+                title: 'En Progreso',
+                dragTo: 'board3',
+                cards: [
+                    { id: 'task3', title: 'Tarea 3' }
+                ]
+            },
+            {
+                id: 'board3',
+                title: 'Completado',
+                cards: [
+                    { id: 'task4', title: 'Tarea 4' }
+                ]
+            }
+        ]
+    });
+</script>
+
+</body>
+</html>
+<?php

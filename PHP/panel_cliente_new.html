@@ -1,0 +1,220 @@
+<html>
+
+<head>
+	<!--SC_PAGE_CHARSET-->
+	<!--SC_JS_LIB-->
+	<link rel="stylesheet" type="text/css" href="panel_cliente_new.css" />
+    <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" /> 
+    <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" type="text/css" href="https://morrisjs.github.io/morris.js/css/morris.css" />
+	<script type="text/javascript" src="panel_cliente.js"></script>
+	<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.1.0/raphael-min.js"></script>
+ 	<script src="//cdnjs.cloudflare.com/ajax/libs/morris.js/0.5.1/morris.min.js"></script>
+  	<script type="text/javascript" src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+	<title><!--SC_PAGE_TITLE--></title>
+  	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">  
+</head>
+
+<body>
+<form {SC_FORM_ATTR}  hidden= "true">
+  
+<INPUT {SC_FIELD_INFO_mensaje_cliente} type="hidden" />
+  
+  <INPUT {SC_FIELD_INFO_imagen} type="hidden" />
+  <INPUT {SC_FIELD_INFO_saldo} type="hidden" />
+  <INPUT {SC_FIELD_INFO_saldo_bs} type="hidden" />
+  <INPUT {SC_FIELD_INFO_Tarea} type="hidden" />
+  <INPUT {SC_FIELD_INFO_nombre} type="hidden" />
+  <INPUT {SC_FIELD_INFO_alerta} type="hidden" />
+  <INPUT {SC_FIELD_INFO_tasa_cambio_bcv} type="hidden" />
+  <INPUT {SC_FIELD_INFO_saldo_deuda} type="hidden" />
+  <INPUT {SC_FIELD_INFO_servicios} type="hidden" />	
+  <INPUT {SC_FIELD_INFO_empresa} type="hidden" />
+  <INPUT  hidden= "true" class="{SC_FIELD_CLASS}" />
+
+  
+<!--SC_FIELD_INI_id_cliente--> 
+  
+ <!--SC_FIELD_LABEL_id_cliente-->
+ <INPUT hidden= "true" {SC_FIELD_INFO_id_cliente} type="hidden"   />
+ 
+<!--SC_FIELD_END_id_cliente-->  
+  
+<INPUT hidden= "true" type="BUTTON" value="Submit" {SC_FORM_SUBMIT_CALL} />
+  
+<!--SC_FORM_HIDDEN-->
+ </form>
+    </header>
+      <div class="container-fluid">
+            <div class="clearfix"></div>
+          </div>
+          <div class="row">
+            <div class="col-lg-12 col-sm-12">
+              <div class="row">
+             
+           
+                        
+                  <div class="col-sm-4">
+                 <a href="../estados_de_cuenta_grid/">
+                  <div class="panel panel-blue">
+                   
+                    <div class="panel-heading">
+                     
+                      <div class="row">
+                
+                        <div class="col-xs-9">
+                          <div class="huge">
+                             <!--SC_FIELD_LABEL_saldo_deuda-->  
+                                   
+                          </div>
+                          <!-- Ocultando Divisas-->
+                          <?php
+                              $host = '10.1.1.203';
+                              $db = 'administrativo';
+                              $user = 'scryptcase';
+                              $pass = 'Mt*1329*--1';
+                              $conn = new mysqli($host, $user, $pass, $db);
+
+                              // Verificar conexión
+                              if ($conn->connect_error) {
+                                  die("Error de conexión: " . $conn->connect_error);
+                              }
+                          ?>
+                          <div>
+                         Monto en Ref <!--SC_FIELD_LABEL_saldo-->.
+                          </div>
+                          <div>
+                          
+                          Monto en Bs:  <!--SC_FIELD_LABEL_saldo_bs-->. <br> Servicios: <!--SC_FIELD_LABEL_servicios--> .
+                          </div>
+                        </div>
+                        <div class="col-xs-3 text-right">
+                          <i class="fa fa-dollar fa-5x"></i>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    
+                    <a href="../estados_de_cuenta_grid/">
+                      
+                      
+                    <div class="panel-footer">
+                      <span class="pull-left">Ver Facturas</span> <span class="pull-right"><i class=
+                      "fa fa-arrow-circle-right"></i></span>
+                      <div class="clearfix"></div>
+                    </div></a>
+                  </div>
+                </div>
+                <div class="col-sm-4">
+                  <a href="../control/">
+                  <div class="panel panel-green">
+                    <div class="panel-heading">
+                      <div class="row">
+                        <div class="col-xs-9">
+                          <div class="huge">
+                          Pagar
+                          </div>
+                          <div>
+                          Registrar Transferencias
+                          </div>
+                          <div>
+                           y 
+                          </div>
+                          <div>
+                           Pagos en Linea
+                          </div>
+                        </div>
+                        <div class="col-xs-3 text-right">
+                      <i class="fa fa-credit-card fa-5x"></i>
+                        </div>
+                      </div>
+                      
+                      
+                    </div><a href="../control/">
+                    
+                    
+                    <div class="panel-footer">
+                      <span class="pull-left"></span>Ir Portal de Pagos <span class="pull-right"><i class=
+                      "fa fa-arrow-circle-right"></i></span>
+                      <div class="clearfix"></div>
+                    </div></a>
+                  </div>
+                </div>
+             
+            
+                <!-- MENU - Cerrar sesion - DROPDOWN 
+                   <div class="col-sm-4">
+                     <a href="../control/">
+                     <div class="panel panel-red">
+                     <div class="panel-heading">
+                      <div class="row">
+                       <!–     <div class="col-xs-9">
+                      <!–        <div class="huge">
+                      <!–          Registrar
+                       <!–       </div>
+                       <!–       <div>
+                       <!–         Carga pagos realizados en otras plataformas bancarias
+                        <!–      </div>
+                      <!–      </div>
+                      <!–      <div class="col-xs-3 text-right">
+                     <!–         <i class="fa fa-file-text fa-5x"></i>
+                     <!–       </div>
+                     <!–     </div>
+                                        
+                    <!–    </div><a href="../grid_abonos_cliente/">
+                    
+                    
+                        <div class="panel-footer">
+                         <span class="pull-left">Registrar Pago</span> <span class="pull-right"><i class=
+                          "fa fa-arrow-circle-right "></i></span>
+                          <div class="clearfix"></div>
+                       </div></a>
+                    </div>
+                   </div> 
+                 final comentario  --> 
+                  
+                  
+                                 <div class="col-sm-4">
+                                   <a href="../status_nodo_servicio/">
+                  <div class="panel panel-yellow">
+                    <div class="panel-heading">
+                      <div class="row">
+                        <div class="col-xs-9">
+                          <div class="huge">
+                            Servicio
+                          </div>
+                          <div>
+                            Notificaciones 
+                          </div>
+                          <div>
+                            y 
+                          </div>
+                          <div>
+                          Alertas  de los servicios contratados
+                          </div>
+                        </div>
+                        <div class="col-xs-3 text-right">
+                          <i class="fa fa-signal fa-5x"></i>
+                        </div>
+                      </div>
+                      
+                      
+                    </div> <a href="../status_nodo_servicio/">
+                    
+                    
+                    <div class="panel-footer">
+                      <span class="pull-left">Ver Notificaciones</span> <span class="pull-right"><i class=
+                      "fa fa-arrow-circle-right"></i></span>
+                      <div class="clearfix"></div>
+                    </div></a>
+                  </div>
+                </div>
+      <div class="col-sm-12">
+        
+          <div class="footer text-center">
+            Power By 2023 <a target="_blank" href="https://icarosoft.com/"> @IcaroSoftVe </a>
+          </div>
+
+</body>
+</html>
