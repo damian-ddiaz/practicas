@@ -3,19 +3,19 @@
 // Conectar a la base de datos (asegúrate de usar tus credenciales)
 
 // DEVELOPER
-/*
+
 $host   = '172.16.7.50';
 $db     = 'webservices';
 $user   = 'scryptcase';
 $pass   = 'Mt*1329*--1';
-*/
-// PRODUCCION
 
+// PRODUCCION
+/*
 $host   = '45.179.164.7';
 $db     = 'webservices';
 $user   = 'scryptcase';
 $pass   = 'Mt*1329*--1';
-
+**/
 $conn = new mysqli($host, $user, $pass, $db);
 
 // Verificar conexión
@@ -27,14 +27,14 @@ if ($conn->connect_error) {
 
  $var_empresa_corregir  = 'J412301390';
  $var_sucursal_corregir = 'J412301390-SUC01';
-// Actualizar id_banco en la tabla banco_resumen_conciliacion
+// Actualizar id_banco en la tabla ventas_transacciones_detalles
 $sql_banco_resumen_conciliacion = "select 
 id_conciliacion, 
 codigo_banco, 
 empresa, 
 sucursal, 
 id_banco
-  from banco_resumen_conciliacion
+  from ventas_transacciones_detalles
 where id_banco = 0 or isnull(id_banco) and empresa = '$var_empresa_corregir' and sucursal = '$var_sucursal_corregir'";
 
 // Ejecutar la consulta
