@@ -17,46 +17,54 @@ WHERE
 	codigo = '[usr_empresa]'";
 sc_lookup_field(rs_empresa, $sql_empresa);
 
-if([par_id_compra]>0){
-	$condicion_rs = "id_compra = [par_id_compra] and empresa ='[usr_empresa]'";
-}else{
-	$condicion_rs = "id_factura_resumen = [par_id_factura_resumen] and empresa ='[usr_empresa]'";
-}
-	
+$sql_sucursal ="SELECT
+	codigo,
+	descripcion,
+	direccion,
+	rif 
+FROM
+	configuracion_sucursal 
+WHERE
+	empresa = '[usr_empresa]'
+	AND codigo = '[usr_sucursal]'";
+sc_lookup_field(rs_sucursal, $sql_sucursal);
+
 $sql ="select
+   numero,
+  numero_factura,
+  numero_control,
+  fecha_factura,
+  fecha_vencimiento,
   id_compra,
-  id_factura_resumen,
-  corr_interno,
   descripcion as descripcion_gasto,
-  status,
-  empresa2 as nombre_empresa,
+  direccion,
+  codigo_proveedor  as rif_proveedor,
+  estado,
   sucursal,
-  fecha_reg,
+  fecha_registro as fecha_reg,
   tasa_cambio,
-  total_neto,
-  total_neto_bs,
-  saldo,
-  saldo_fact,
-  codigo_padre,
-  codigo_hijo,
-  gasto_concepto,
-  fecha,
-  monto_desc,
+  total,
+  total_bolivares,
+  id_proveedor,
+  original,
+  id_gasto_resumen as corr_interno,
   usuario,
-  monto_iva_bs,
-  total_bs,
-  codigo_proveedor as id_proveedor
-from
-  gastos_recurrentes_facturas_resumen
+  round(total * tasa_cambio,2) as total_bs,
+  round(iva_ret / tasa_cambio,2) as iva_ret,
+  iva_ret as iva_ret_bs, 
+  round(islr_ret / tasa_cambio,2) as islr_ret,
+  islr_ret as islr_ret_bs
+  from
+  compras_resumen
 where
-   $condicion_rs";
+   id_compra = [par_id_compra] and empresa ='[usr_empresa]'";
 sc_lookup_field(rs, $sql); 
 
 
 $sql_linea ="select
  count(*) as lineas
 from
-  gastos_recurrentes_factura_detalles
+  compras_detalles
 where
    $condicion_rs";
 sc_lookup_field(rs_linea, $sql_linea); 
@@ -100,73 +108,34 @@ $pdf->SetFont($font_nom, 'B', 12);
 $pdf->Cell(0, $font_atl, utf8_decode($nombre_reporte), 0, 1, 'C');
 
 $pdf->SetFont($font_nom, 'B', 9);
-$pdf->SetXY(170, 4);//Coordenadas X/Y 
-$pdf->MultiCell(40, $font_atl, utf8_decode('Numero Gasto: '.{rs[0]['id_factura_resumen']}), 0,'R');
+$pdf->SetXY(150, 4);//Coordenadas X/Y 
+$pdf->MultiCell(60, $font_atl, utf8_decode('Numero Gasto: '.{rs[0]['numero']}), 0,'R');
 
-$fecha_factura = {rs[0]['fecha']}; 
+$fecha_factura = {rs[0]['fecha_reg']}; 
 $fecha_factura_final = date('d/m/Y', strtotime($fecha_factura));
-$pdf->SetXY(170, 8);//Coordenadas X/Y 
-$pdf->MultiCell(40, $font_atl, utf8_decode('Fecha: '.$fecha_factura_final), 0,'R');
+$pdf->SetXY(150, 8);//Coordenadas X/Y 
+$pdf->MultiCell(60, $font_atl, utf8_decode('Fecha: '.$fecha_factura_final), 0,'R');
 
 $pdf->SetFont($font_nom, '', 8);
 $line_ini= 13;
 $line_salto = 4;
 //Datos de la Empresa
 $pdf->SetXY(5, $line_ini);//Coordenadas X/Y 
-$pdf->MultiCell(100, $font_atl, utf8_decode('Empresa: '.{rs[0]['nombre_empresa']}), 0,'L');
+$pdf->MultiCell(100, $font_atl, utf8_decode('Empresa: '.{rs_empresa[0]['empresa']}), 0,'L');
+
 $pdf->SetXY(95, $line_ini);//Coordenadas X/Y 
-$pdf->MultiCell(60, $font_atl,utf8_decode('Sucursal: '.{rs[0]['sucursal']}), 0,'L');
+$pdf->MultiCell(80, $font_atl,utf8_decode('Sucursal: '.{rs_sucursal[0]['descripcion']}), 0,'L');
 
 $pdf->SetFont($font_nom, 'B', 9);
 $pdf->SetXY(150, 12);//Coordenadas X/Y 
-$pdf->MultiCell(60, $font_atl, utf8_decode('Estatus: '.{rs[0]['status']}),0,'R');
+$pdf->MultiCell(60, $font_atl, utf8_decode('Estatus: '.{rs[0]['estado']}),0,'R');
 $pdf->SetFont($font_nom, '', 8);
 
 $line_ini = $line_ini + $line_salto;
 $pdf->SetXY(5, $line_ini);//Coordenadas X/Y 
 $pdf->MultiCell(60, $font_atl, utf8_decode('R.I.F.: '.{rs_empresa[0]['numero_identificacion']}),0,'L');
 
-// Buscando Descripcion del Padre
-$var_codigo_padre	= {rs[0]['codigo_padre']};
-$sql_concepto ="select
-  codigo_padre,
-  nombre_padre
-from
-  contabilidad_plan_de_cuentas_padre
-where
-  codigo_padre = '$var_codigo_padre'
-  and empresa = '[usr_empresa]'";
-sc_lookup_field(rs_gasto, $sql_concepto);
-
-$pdf->SetXY(95, $line_ini);//Coordenadas X/Y 
-$pdf->MultiCell(120, $font_atl,utf8_decode('Tipo Gasto: '.{rs_gasto[0]['nombre_padre']}), 0,'L');
-
-// Buscando Descripcion del Concepto
-$var_codigo_hijo	= {rs[0]['codigo_hijo']};
-$sql_concepto ="select
-  codigo_hijo,
-  nombre_hijo
-from
-  contabilidad_plan_de_cuentas_hijo
-where
-  codigo_hijo = '$var_codigo_hijo'
-  and empresa = '[usr_empresa]'";
-sc_lookup_field(rs_concepto, $sql_concepto);
-
-$pdf->SetXY(50, $line_ini);//Coordenadas X/Y 
-$pdf->MultiCell(160, $font_atl,utf8_decode('Concepto: '.{rs_concepto[0]['nombre_hijo']}), 0,'R');
-
-$var_corr_interno = {rs[0]['corr_interno']};
-$sql_periodo ="select
-  id_gasto_resumen,
-  fecha,
-  fecha_fin
-from
-  gastos_recurrentes_resumen
-where
-  id_gasto_resumen = $var_corr_interno
-  and empresa = '[usr_empresa]'";
-sc_lookup_field(rs_periodo, $sql_periodo);
+// $var_corr_interno = {rs[0]['corr_interno']};
 
 $fecha_desde = {rs_periodo[0]['fecha']}; 
 $fecha_desde_final = date('d/m/Y', strtotime($fecha_desde));
@@ -178,12 +147,6 @@ $fecha_hasta = {rs_periodo[0]['fecha_fin']};
 $fecha_hasta_final = date('d/m/Y', strtotime($fecha_hasta));
 $pdf->SetXY(50, $line_ini);//Coordenadas X/Y 
 $pdf->MultiCell(60, $font_atl, utf8_decode('Hasta: '.$fecha_hasta_final),0,'L');
-
-$pdf->SetXY(95, $line_ini);//Coordenadas X/Y 
-$pdf->MultiCell(100, $font_atl, utf8_decode('Monto Permitido: '.{rs[0]['saldo']}),0,'L');
-
-$pdf->SetXY(110, $line_ini);//Coordenadas X/Y 
-$pdf->MultiCell(100, $font_atl, utf8_decode('Monto Disponible: '.{rs[0]['gasto_concepto']}),0,'R');
 
 $line_ini = $line_ini + $line_salto;
 $pdf->SetXY(5, $line_ini);//Coordenadas X/Y 
@@ -214,9 +177,6 @@ $line_ini = $line_ini + $line_salto;
 $pdf->SetXY($colu_ini, $line_ini);//Coordenadas X/Y
 $pdf->MultiCell(100, $font_atl, utf8_decode('Proveedor: '.{rs_prove[0]['nombre_proveedor']}), 0,'L');
 
-$pdf->SetXY(110, $line_ini);//Coordenadas X/Y 
-$pdf->MultiCell(100, $font_atl, utf8_decode('Monto Disponible despues de la Compra: '.{rs[0]['monto_desc']}),0,'R');
-
 // Buscando Nommbre Usuario
 $var_usuaro = {rs[0]['usuario']};
 $sql_usuario ="select
@@ -224,9 +184,7 @@ $sql_usuario ="select
 from
   seguridad_users
 where
-  login = '$var_usuaro'
-  and codigo_empresa = '[usr_empresa]'
-  and codigo_sucursal = '[usr_sucursal]'";
+  login = '$var_usuaro'";
 sc_lookup_field(rs_usuario, $sql_usuario);
 
 $line_ini = $line_ini + $line_salto;
@@ -253,65 +211,131 @@ $pdf->MultiCell(60, $font_atl, utf8_decode('Telefono(s): '.{rs_prove[0]['telefon
 $pdf->SetXY(120, $line_ini);//Coordenadas X/Y 
 $pdf->MultiCell(90, $font_atl, utf8_decode('Realizado por: '.{rs_usuario[0]['name']}),0,'R');
 
-
 // Leyendo Detalle
-$sql_det_gasto ="select
-  nombre_prod,
-  cantidad,
-  precio_uni,
-  tipo_imp as iva,
-  renglon_neto_bs,
-  renglon_neto
+$sql_det_gasto ="select 
+ cd.codigo_producto,
+ cd.nombre_producto as nombre_prod, 
+ ip.codigo_padre as codigo_padre,
+ ip.codigo_hijo as codigo_hijo,
+ cd.cantidad, 
+ cd.precio_unitario as precio_uni,
+ cd.tipo_impuesto as iva,
+ sum(cd.total_renglon_bs) as total_renglon_bs,
+ sum(cd.total_renglon) as total_renglon,
+ if(isnull(cd.monto_permitido),0,cd.monto_permitido) as monto_permitido,
+ if(isnull(cd.monto_disponible),0,cd.monto_disponible) as monto_disponible,
+ if(isnull(cpp.nombre_padre) or cpp.nombre_padre ='','SIN CLASIFICAR',cpp.nombre_padre) as nombre_padre,
+  if(isnull(cph.nombre_hijo) or cph.nombre_hijo ='','SIN CLASIFICAR',cph.nombre_hijo) as nombre_hijo,
+ cd.empresa,
+ cd.sucursal
 from
-  gastos_recurrentes_factura_detalles
+  compras_detalles cd
+ left join inventario_productos ip 
+ on ip.codigo_productos = codigo_producto 
+ and ip.empresa = cd.empresa and ip.sucursal = cd.sucursal
+ left join contabilidad_plan_de_cuentas_padre cpp 
+ on cpp.codigo_padre = ip.codigo_padre
+ AND cpp.empresa = cd.empresa
+ left join contabilidad_plan_de_cuentas_hijo cph 
+ on cph.codigo_hijo = ip.codigo_hijo
+ and cph.empresa = cd.empresa
 where
-  id_factura_resumen = [par_id_factura_resumen]
-  and empresa = '[usr_empresa]'
-";
+  cd.id_compra = [par_id_compra]
+   group by ip.codigo_hijo";
 sc_lookup_field(rs_det_gasto, $sql_det_gasto); 
 
-if({rs_det_gasto[0]['renglon_neto']}>0 and [par_id_factura_resumen] >0){ // hay detalles de Gastos
+if({rs_det_gasto[0]['total_renglon']}>0 and [par_id_compra] >0){ // hay detalles de Gastos
 	$line_ini = $line_ini + 7; // Salto de Bloque
 	$pdf->SetXY(5, $line_ini);
 	$font_tam = 8;
 	$pdf->SetFont($font_nom, 'B', $font_tam);
 	$pdf->SetFillColor(146, 140, 139);
-	$pdf->MultiCell(75,4, utf8_decode('Descripcion'), 1,'C',true); 
-	$pdf->SetXY(80,$line_ini);
-	$pdf->MultiCell(25,4, utf8_decode('Precio UND'), 1,'C',true); 
-	$pdf->SetXY(105,$line_ini);
-	$pdf->MultiCell(25,4, utf8_decode('Cantidad'), 1,'C',true); 
-	$pdf->SetXY(130,$line_ini);
-	$pdf->MultiCell(25,4, utf8_decode('IVA.'), 1,'C',true); 
-	$pdf->SetXY(155,$line_ini);
-	$pdf->MultiCell(28,4, utf8_decode('Total Bs.'), 1,'C',true); 
-	$pdf->SetXY(182,$line_ini);
-	$pdf->MultiCell(29,4, utf8_decode('Total $.'), 1,'C',true); 
-	
+	$pdf->MultiCell(40,4, utf8_decode('Tipo Gasto'), 1,'C',true); 
+	$pdf->SetXY(45,$line_ini);
+	$pdf->MultiCell(75,4, utf8_decode('Concepto'), 1,'C',true); 
+	$pdf->SetXY(120,$line_ini);
+	$pdf->MultiCell(30,4, utf8_decode('Monto'), 1,'C',true); 	
+	$pdf->SetXY(150,$line_ini);
+	$pdf->MultiCell(30,4, utf8_decode('Monto Permitido'), 1,'C',true); 
+	$pdf->SetXY(180,$line_ini);
+	$pdf->MultiCell(30,4, utf8_decode('Monto Disponible'), 1,'C',true); 
+		
 	$font_tam = 9;
 	$font_atl= 5;
 	$line_ini = $line_ini + 4; // Salto de Bloque
 	$pdf->SetXY(5, $line_ini);
 	$pdf->SetFont($font_nom, '', $font_tam);
 	if (is_array($rs_det_gasto) && count($rs) > 0) {//Verificar si se 
-		foreach ($rs_det_gasto as $row) {		
+		foreach ($rs_det_gasto as $row) {	
 			$pdf->SetXY(5, $line_ini);
-			$pdf->Cell(74, $font_atl, $row['nombre_prod'],0,0,'L');
-			$pdf->Cell(25, $font_atl, $row['precio_uni'],0,0,'R');
-			$pdf->Cell(25, $font_atl, $row['cantidad'], 0,0,'R');
-			$pdf->Cell(25, $font_atl, $row['iva'], 0,0,'R');
-			$pdf->Cell(28, $font_atl, $row['renglon_neto_bs'],0,0,'R');
-			$pdf->Cell(29, $font_atl, $row['renglon_neto'],0,0,'R');
+			$pdf->Cell(40, $font_atl, utf8_decode($row['nombre_padre']),0,0,'L');
+			$pdf->Cell(75, $font_atl, utf8_decode($row['nombre_hijo']),0,0,'L');
+			$pdf->Cell(30, $font_atl, $row['total_renglon'], 0,0,'R');
+			$pdf->Cell(30, $font_atl, $row['monto_permitido'], 0,0,'R');
+			$pdf->Cell(30, $font_atl, $row['monto_disponible'],0,0,'R');
 			$line_ini = $line_ini + 5; // Salto de Bloque	
+			
+			//Agrgando el Detalle de los gastos - Damian Diaz 06-08-2025
+			$var_codigo_padre = $row['codigo_padre'];
+			$var_codigo_hijo  = $row['codigo_hijo'];
+			// Leyendo Detalle Productos
+			$rs_det_gasto_productos ="select 
+			 cd.codigo_producto,
+			 cd.nombre_producto as nombre_prod, 
+			 ip.codigo_padre,
+			 ip.codigo_hijo,
+			 cd.cantidad, 
+			 cd.precio_unitario as precio_uni,
+			 cd.tipo_impuesto as iva,
+			 cd.total_renglon_bs as total_renglon_bs,
+			 cd.total_renglon as total_renglon,
+			 cd.empresa,
+			 cd.sucursal
+			from
+			  compras_detalles cd
+			 left join inventario_productos ip 
+			 on ip.codigo_productos = codigo_producto 
+			 and ip.empresa = cd.empresa and ip.sucursal = cd.sucursal
+			where
+			  cd.id_compra = [par_id_compra]
+			  AND ip.codigo_padre 	= '$var_codigo_padre'
+			  AND ip.codigo_hijo 	= '$var_codigo_hijo'";
+			sc_lookup_field(rs_det_gasto_productos, $rs_det_gasto_productos); 
+			
+			$pdf->SetXY(5, $line_ini);
+			$pdf->MultiCell(40,4, utf8_decode('Codigo'), 1,'C'); 
+			$pdf->SetXY(45,$line_ini);
+			$pdf->MultiCell(75,4, utf8_decode('Nombre del Pruducto'), 1,'C'); 
+			$pdf->SetXY(120,$line_ini);
+			$pdf->MultiCell(30,4, utf8_decode('Precio UND'), 1,'C'); 	
+			$pdf->SetXY(150,$line_ini);
+			$pdf->MultiCell(30,4, utf8_decode('Cantidad'), 1,'C'); 
+			$pdf->SetXY(180,$line_ini);
+			$pdf->MultiCell(30,4, utf8_decode('Total Renglon'), 1,'C'); 
+
+			$line_ini = $line_ini + 5; // Salto de Bloque	
+
+			if (is_array($rs_det_gasto_productos) && count($rs) > 0) {//Verificar si se 
+				foreach ($rs_det_gasto_productos as $row) {	
+					$pdf->SetXY(5, $line_ini);
+					$pdf->Cell(40, $font_atl, utf8_decode($row['codigo_producto']),0,0,'C');
+					$pdf->Cell(75, $font_atl, utf8_decode($row['nombre_prod']),0,0,'L');
+					$pdf->Cell(30, $font_atl, $row['precio_uni'],0,0,'R');
+					$pdf->Cell(30, $font_atl, $row['cantidad'],0,0,'R');
+					$pdf->Cell(30, $font_atl, utf8_decode($row['total_renglon']),0,0,'R');
+					$line_ini = $line_ini + 5; // Salto de Bloque	
+				}
+			}			
+			
 		}	
 	}	
 }
 
 // Detalle de los pagos
 if([par_media_carta] =='SI'){;
-	$line_ini = $line_ini + 30; // Salto de Bloque
+	$line_ini = $line_ini + 5; // Salto de Bloque
 }else{// Carta
-	$line_ini = $line_ini + 80; // Salto de Bloque
+	$line_ini = $line_ini + 10; // Salto de Bloque
 }
 
 $pdf->SetXY(5, $line_ini);
@@ -332,20 +356,14 @@ $pdf->MultiCell(22,4, utf8_decode('Tasa Cambio'), 1,'C',true);
 $pdf->SetXY(189,$line_ini);
 $pdf->MultiCell(22,4, utf8_decode('Fecha'), 1,'C',true);
 
-if([par_id_compra]>0){
-	$condicion_det = "cd.id_compra = '[par_id_compra]' and cd.empresa ='[usr_empresa]'";
-}else{
-	$condicion_det= "cd.id_factura_resumen = '[par_id_factura_resumen]' and cd.empresa ='[usr_empresa]'";
-}
-
 // Leyendo Detalle
 $sql_det ="select
   cd.id_compra,
   cd.tipo_pago,
-  btp.nombre_tipo_pago,
-  cd.forma_pago,
-  bfp.nombre_formas_pago,
-  cd.referencia,
+  CONCAT(UPPER(SUBSTRING(btp.nombre_tipo_pago, 1, 1)),
+  LOWER(SUBSTRING(btp.nombre_tipo_pago, 2))) AS nombre_tipo_pago,  cd.forma_pago,
+  CONCAT(UPPER(SUBSTRING(bfp.nombre_formas_pago, 1, 1)),
+  LOWER(SUBSTRING(bfp.nombre_formas_pago, 2))) AS nombre_formas_pago,  cd.referencia,
   cd.monto,
   cd.monto_bs,
   cd.tasa_cambio,
@@ -358,7 +376,7 @@ from
   left join banco_formas_pago bfp ON
   bfp.codigo_formas_pago = cd.forma_pago
 where
-  $condicion_det
+  cd.id_compra = [par_id_compra]
   and btp.empresa='[usr_empresa]' and btp.sucursal ='[usr_sucursal]'
   and bfp.empresa='[usr_empresa]' and bfp.sucursal ='[usr_sucursal]'
   and bfp.codigo_tipo_pago = cd.tipo_pago
@@ -373,9 +391,8 @@ $pdf->SetFont($font_nom, '', $font_tam);
 if (is_array($rs_det) && count($rs) > 0) {//Verificar si se 
 	foreach ($rs_det as $row) {		
 		$pdf->SetXY(5, $line_ini);
-		$pdf->Cell(50, $font_atl, $row['nombre_tipo_pago'],0,0,'L');
-		$pdf->Cell(40, $font_atl, $row['nombre_formas_pago'],0,0,'L');
-		$pdf->Cell(28, $font_atl, $row['referencia'], 0,0,'L');
+		$pdf->Cell(50, $font_atl, utf8_decode($row['nombre_tipo_pago']),0,0,'L');
+		$pdf->Cell(40, $font_atl, utf8_decode(substr($row['nombre_formas_pago'],0,24)),0,0,'L');		$pdf->Cell(28, $font_atl, $row['referencia'], 0,0,'L');
 		$pdf->Cell(22, $font_atl, $row['monto'],0,0,'R');
 		$pdf->Cell(22, $font_atl, $row['monto_bs'],0,0,'R');
 		$pdf->Cell(22, $font_atl, $row['tasa_cambio'], 0,0,'R');
@@ -405,14 +422,16 @@ $colu_ini = 120;
 $ancho = 90;
 $ancho_campo = 20;
 
-$line_ini = $line_ini + $line_salto;
-$pdf->SetXY($colu_ini, $line_ini);//Coordenadas X/Y
-$pdf->MultiCell($ancho,$font_atl, utf8_decode('Total Gasto $: ' .str_pad(number_format({rs[0]['saldo_fact']},2,',','.'),$ancho_campo,' ',STR_PAD_LEFT)), 0,'R');
+$var_gasto	  = {rs[0]['total']} - ({rs[0]['iva_ret']} + {rs[0]['islr_ret']});
+$var_gasto_bs = {rs[0]['total_bs']} - ({rs[0]['iva_ret_bs']} + {rs[0]['islr_ret_bs']});
 
-$var_gasto_bs = round({rs[0]['saldo_fact']} * {rs[0]['tasa_cambio']},2);
 $line_ini = $line_ini + $line_salto;
 $pdf->SetXY($colu_ini, $line_ini);//Coordenadas X/Y
-$pdf->MultiCell($ancho,$font_atl, utf8_decode('Total Gasto Bs: ' .str_pad(number_format($var_gasto_bs,2,',','.'),$ancho_campo,' ',STR_PAD_LEFT)), 0,'R');
+$pdf->MultiCell($ancho,$font_atl, utf8_decode('Total a Pagar $: ' .str_pad(number_format($var_gasto,2,',','.'),$ancho_campo,' ',STR_PAD_LEFT)), 0,'R');
+
+$line_ini = $line_ini + $line_salto;
+$pdf->SetXY($colu_ini, $line_ini);//Coordenadas X/Y
+$pdf->MultiCell($ancho,$font_atl, utf8_decode('Total a Pagar Bs: ' .str_pad(number_format($var_gasto_bs,2,',','.'),$ancho_campo,' ',STR_PAD_LEFT)), 0,'R');
 
 // Generar el archivo PDF
 $pdf->Output($nombre_reporte, 'I');
