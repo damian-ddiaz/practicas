@@ -3,7 +3,7 @@
 // Conectar a la base de datos (asegúrate de usar tus credenciales)
 // DEVELOPER
 /*
-$host = '10.10.10.120';
+$host = '172.16.7.50';
 $db = 'webservices';
 $user = 'scryptcase';
 $pass = 'Mt*1329*--1';
@@ -19,17 +19,17 @@ $conn = new mysqli($host, $user, $pass, $db);
 
 // Verificar conexión
 if ($conn->connect_error) {
-    die("Error de conexión: " . $conn->connect_error);
+    die("Error de conexión: {$conn->connect_error}");
 }else{
-    echo 'CONEXION EXITOSA'.'<br>';
+    echo "CONEXION EXITOSA<br>";
 
 }
 
 // Iniciar la transacción
 // $conn->begin_transaction();
 
-$var_no_com_ret_org = '20250200002725'; // Retencion Original
-$var_no_com_ret_cop = '20250200002723'; // Retencion Copia
+$var_no_com_ret_org = '20250900004980'; // Retencion Original
+$var_no_com_ret_cop = '20250900004978'; // Retencion Copia
 
 $var_empresa = 'tecnoven';
 // Consulta compras_resumen
@@ -92,9 +92,9 @@ $sql_compras_resumen = "SELECT
 FROM 
     compras_resumen where no_com_ret = '$var_no_com_ret_org' and  empresa = '$var_empresa'";
 
-$result = $conn->query(query: $sql_compras_resumen);
+$result = $conn->query($sql_compras_resumen);
 
-$row = $result ? $result->fetch_assoc() : null; // Obtiene la fila o null si no hay resultado
+$row = $result?->fetch_assoc(); // Obtiene la fila o null si no hay resultado
 
 if ($row) { // Si hay un resultado
     $id_compra_original      = $row['id_compra'];
@@ -219,50 +219,50 @@ if ($row) { // Si hay un resultado
         '$fecha_vencimiento', 
         '$fecha_registro', 
         '$moneda', 
-        $tasa_cambio, 
-        $descuento, 
-        $subtotal, 
-        $IVA, 
-        $total, 
+        " . ($tasa_cambio !== null ? $tasa_cambio : 0) . ", 
+        " . ($descuento !== null ? $descuento : 0) . ", 
+        " . ($subtotal !== null ? $subtotal : 0) . ", 
+        " . ($IVA !== null ? $IVA : 0) . ", 
+        " . ($total !== null ? $total : 0) . ", 
         '$usuario', 
         '$empresa', 
         '$sucursal', 
         '$ip_estacion', 
-        $total_bolivares, 
+        " . ($total_bolivares !== null ? $total_bolivares : 0) . ", 
         '$codigo_proveedor', 
         '$cod_almacen', 
         '$cod_ubicacion', 
         '$cod_nivel', 
         '$estado', 
-        $compras_proveedor, 
-        $saldo, 
-        $id_proveedor, 
+        " . ($compras_proveedor !== null ? $compras_proveedor : 0) . ", 
+        " . ($saldo !== null ? $saldo : 0) . ", 
+        " . ($id_proveedor !== null ? $id_proveedor : 0) . ", 
         '$direccion', 
         '$telefono', 
-        $tasa_iva, 
-        $tasa_iva_redu, 
+        " . ($tasa_iva !== null ? $tasa_iva : 0) . ", 
+        " . ($tasa_iva_redu !== null ? $tasa_iva_redu : 0) . ", 
         '$no_com_ret', 
         '$ret_fac_afec', 
-        $iva_bs, 
-        $iva_reduc_bs, 
-        $iva_ret, 
-        $iva_ret_porc, 
-        $sub_total_bs, 
+        " . ($iva_bs !== null ? $iva_bs : 0) . ", 
+        " . ($iva_reduc_bs !== null ? $iva_reduc_bs : 0) . ", 
+        " . ($iva_ret !== null ? $iva_ret : 0) . ", 
+        " . ($iva_ret_porc !== null ? $iva_ret_porc : 0) . ", 
+        " . ($sub_total_bs !== null ? $sub_total_bs : 0) . ", 
         '$no_com_ret_islr', 
-        $islr_ret, 
-        $islr_porc, 
-        $islr_sust, 
+        " . ($islr_ret !== null ? $islr_ret : 0) . ", 
+        " . ($islr_porc !== null ? $islr_porc : 0) . ", 
+        " . ($islr_sust !== null ? $islr_sust : 0) . ", 
         '$num_planilla', 
         '$num_exp_impor', 
         '$nacio_extran', 
-        $base_impo_bs, 
-        $base_exenta_bs, 
-        $base_exonera_bs, 
-        $base_alicu_redu_bs, 
+        " . ($base_impo_bs !== null ? $base_impo_bs : 0) . ", 
+        " . ($base_exenta_bs !== null ? $base_exenta_bs : 0) . ", 
+        " . ($base_exonera_bs !== null ? $base_exonera_bs : 0) . ", 
+        " . ($base_alicu_redu_bs !== null ? $base_alicu_redu_bs : 0) . ", 
         '$original', 
         '$codigo_padre', 
         '$codigo_hijo', 
-        $id_gasto_resumen
+        '" . ($id_gasto_resumen !== null ? $id_gasto_resumen : '0') . "'
     )";
 
 // echo $sql_compras_resumen_insert;
@@ -275,8 +275,8 @@ $conn->query($sql_compras_resumen_insert);
     FROM 
         compras_resumen where no_com_ret = '$var_no_com_ret_cop' and  empresa = '$var_empresa'";
 
-        $result = $conn->query(query: $sql_compras_resumen_nueva);
-        $row = $result ? $result->fetch_assoc() : null; // Obtiene la fila o null si no hay resultado
+        $result = $conn->query($sql_compras_resumen_nueva);
+        $row = $result?->fetch_assoc(); // Obtiene la fila o null si no hay resultado
 
       //  echo $sql_compras_resumen_nueva;
 
@@ -319,7 +319,7 @@ FROM
 
 // Ejecutar la consulta
 $result = $conn->query($sql_compras_detalles);
-$row = $result ? $result->fetch_assoc() : null; // Obtiene la fila o null si no hay resultado
+$row = $result?->fetch_assoc(); // Obtiene la fila o null si no hay resultado
 
 if ($row) { // Si hay un resultado
     foreach ($result as $row) {	
@@ -374,37 +374,37 @@ if ($row) { // Si hay un resultado
             `total_renglon_bs`, 
             `total_iva_bs`
         ) VALUES (
-            $var_id_compra_nueva, 
+            " . ($var_id_compra_nueva !== null ? $var_id_compra_nueva : 0) . ", 
             '$estado', 
             '$nombre_producto', 
-            $precio_unitario, 
+            " . ($precio_unitario !== null ? $precio_unitario : 0) . ", 
             '$impuesto_productos', 
-            $tipo_impuesto, 
-            $cantidad, 
-            $subtotal_renglon, 
-            $total_renglon, 
+            " . ($tipo_impuesto !== null ? $tipo_impuesto : 0) . ", 
+            " . ($cantidad !== null ? $cantidad : 0) . ", 
+            " . ($subtotal_renglon !== null ? $subtotal_renglon : 0) . ", 
+            " . ($total_renglon !== null ? $total_renglon : 0) . ", 
             '$empresa', 
             '$sucursal', 
             '$usuario', 
             '$fecha', 
             '$ip_estacion', 
             '$codigo_producto', 
-            $tasa_cambio, 
+            " . ($tasa_cambio !== null ? $tasa_cambio : 0) . ", 
             '$tipo_unidad', 
             '$codigo_almacen', 
-            $iva, 
-            $iva_total, 
-            $precio_unitario_bs, 
-            $subtotal_renglon_bs, 
-            $total_renglon_bs, 
-            $total_iva_bs
+            " . ($iva !== null ? $iva : 0) . ", 
+            " . ($iva_total !== null ? $iva_total : 0) . ", 
+            " . ($precio_unitario_bs !== null ? $precio_unitario_bs : 0) . ", 
+            " . ($subtotal_renglon_bs !== null ? $subtotal_renglon_bs : 0) . ", 
+            " . ($total_renglon_bs !== null ? $total_renglon_bs : 0) . ", 
+            " . ($total_iva_bs !== null ? $total_iva_bs : 0) . "
         )";
 
       //  echo $sql_compras_detalles_insert;
         $conn->query($sql_compras_detalles_insert);
     }
 }
-
+// --- IGNORE ---
 // Consulta compras_transacciones_detalles
 $sql_compras_transacciones_detalles = "SELECT 
     `id_compras_transacciones_detalles`, 
@@ -441,7 +441,8 @@ FROM
 
 // Ejecutar la consulta
 $result = $conn->query($sql_compras_transacciones_detalles);
-$row = $result ? $result->fetch_assoc() : null; // Obtiene la fila o null si no hay resultado
+
+$row = $result?->fetch_assoc(); // Obtiene la fila o null si no hay resultado
 
 if ($row) { // Si hay un resultado
     foreach ($result as $row) {	
@@ -503,33 +504,33 @@ if ($row) { // Si hay un resultado
             `id_factura_resumen`, 
             `id_banco`
         ) VALUES (
-            $var_id_compra_nueva, 
-            $id_conciliacion, 
-            '$tipo_pago', 
-            '$forma_pago', 
-            $tasa_cambio, 
-            '$origen', 
-            '$cod_forma_pago', 
-            '$referencia', 
-            '$descripcion', 
-            $monto, 
-            $monto_bs, 
-            '$fecha_transaccion', 
-            '$conciliado', 
-            '$nro_conciliacion', 
-            '$revisado', 
-            '$status', 
-            '$tipo_conciliacion', 
-            '$fecha', 
-            '$empresa', 
-            '$sucursal', 
-            '$usuario', 
-            '$usr_nivel', 
-            '$ip_estacion', 
-            $id_cxp_pago_resumen, 
-            $id_factura_resumen, 
-            $id_banco
-        )";   
+            " . ($var_id_compra_nueva !== null ? $var_id_compra_nueva : 0) . ",
+            " . ($id_conciliacion !== null ? $id_conciliacion : 'NULL') . ",
+            '$tipo_pago',
+            '$forma_pago',
+            " . ($tasa_cambio !== null ? $tasa_cambio : 0) . ",
+            '$origen',
+            '$cod_forma_pago',
+            '$referencia',
+            '$descripcion',
+            " . ($monto !== null ? $monto : 0) . ",
+            " . ($monto_bs !== null ? $monto_bs : 0) . ",
+            '$fecha_transaccion',
+            '$conciliado',
+            '$nro_conciliacion',
+            '$revisado',
+            '$status',
+            '$tipo_conciliacion',
+            '$fecha',
+            '$empresa',
+            '$sucursal',
+            '$usuario',
+            '$usr_nivel',
+            '$ip_estacion',
+            " . ($id_cxp_pago_resumen !== null ? $id_cxp_pago_resumen : 'NULL') . ",
+            " . ($id_factura_resumen !== null ? $id_factura_resumen : 'NULL') . ",
+            " . ($id_banco !== null ? $id_banco : 'NULL') . "
+        )";
       //  echo $sql_compras_transacciones_detalles_insert;
         $conn->query($sql_compras_transacciones_detalles_insert);
     }
@@ -807,6 +808,6 @@ if ($row) {
    //  echo $sql_gastos_recurrentes_facturas_resumen_insert;
     $result = $conn->query($sql_gastos_recurrentes_facturas_resumen_insert);
 } 
+
 echo 'PROCESO CULMINADO';
 $conn->close();
-?>
