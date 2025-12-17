@@ -28,8 +28,8 @@ if ($conn->connect_error) {
 // Iniciar la transacción
 // $conn->begin_transaction();
 
-$var_no_com_ret_org = '20250900004980'; // Retencion Original
-$var_no_com_ret_cop = '20250900004978'; // Retencion Copia
+$var_no_com_ret_org = '20251000005054'; // Retencion Original
+$var_no_com_ret_cop = '20251000005071'; // Retencion ANULADA
 
 $var_empresa = 'tecnoven';
 // Consulta compras_resumen
@@ -40,7 +40,7 @@ $sql_compras_resumen = "SELECT
     numero_control, 
     no_maquina_fisc, 
     proveedor, 
-    substr(descripcion,1,5) as descripcion, 
+    substr(descripcion,1,7) as descripcion, 
     fecha_factura, 
     fecha_vencimiento, 
     fecha_registro, 
