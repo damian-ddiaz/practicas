@@ -1,0 +1,38 @@
+<?php
+	sc_exec_sql("UPDATE seguridad_users 
+	SET 
+		url_portal_aliado 				= 'SI',
+		url_portal_cliente 				= 'SI',
+		url_portal_dispositos 			= 'SI',
+		url_portal_intranet 			= 'SI',
+		url_portal_rrhh 				= 'SI',
+		url_portal_administrativo 		= 'SI',
+		url_portal_atencion_comercial 	= 'SI',
+		url_portal_contabilidad 		= 'SI',
+		url_portal_helpdesk 			= 'SI',
+		url_portal_mantenimiento 		= 'SI',
+		url_portal_soporte 				= 'SI',
+		url_portal_vendedor 			= 'SI',
+		url_portal_proyectos 			= 'SI',
+		url_portal_eventos 				= 'SI',
+		url_portal_finanzas 			= 'SI',
+		url_portal_tributario 			= 'SI',
+		url_portal_gestionredes 		= 'SI',
+		url_portal_tickets 				= 'SI',
+		url_portal_inventario 			= 'SI',
+		url_portal_puntodeventa 		= 'SI',
+		url_portal_reportes 			= 'SI',
+		url_portal_formularios 			= 'SI',
+		url_portal_herramientas 		= 'SI',
+		url_portal_reportes_matriz 		= 'SI',
+		url_portal_apps_compartidas 	= 'SI',
+		url_portal_configuracion 		= 'SI',
+		url_portal_patrocinadores 		= 'SI',
+		url_portal_teblero_gerencial	= 'SI',
+		url_portal_eventos				= 'SI',
+		url_portal_tributario			= 'SI',
+		url_portal_tickets				= 'SI',
+		url_portal_formularios			= 'SI',
+		url_portal_apps_compartidas		= 'SI'
+	WHERE login = '{login}' and codigo_empresa = '[usr_empresa]'");
+?>
