@@ -1,0 +1,72 @@
+<?php
+// This script restructures the database to ensure all decimal fields are defined correctly.
+// Damian Diaz
+$host = '127.0.0.1';
+$user = 'root';
+$pass = 'Gemelas2000#';
+$target_db = 'webservices';
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+try {
+    $conn = new mysqli($host, $user, $pass);
+    echo "✅ CONEXIÓN AL SERVIDOR EXITOSA";
+    echo '';
+
+    $result = $conn->query("SHOW DATABASES LIKE '$target_db'");
+    if ($result->num_rows == 0) {
+        $conn->query("CREATE DATABASE `$target_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci");
+        echo "✅ Base de datos '$target_db' creada exitosamente...";
+        echo '';
+    } else {
+        echo "📦 Base de datos '$target_db' ya existe...";
+        echo '';
+    }
+
+    $conn->select_db($target_db);
+
+    $var_decimal = "DECIMAL(15,6)";
+
+     // --- inventario ---
+    $nombre_tabla = 'inventario';
+    $result = $conn->query("SHOW TABLES LIKE '$nombre_tabla'");
+    if ($result->num_rows == 0) {
+        echo "🆕 Tabla '$nombre_tabla' no existe.  Creando...";
+        echo '';
+        $create_inventario_sql = "
+                CREATE TABLE `$nombre_tabla` (
+            `codigo_cliente`                                varchar(20) DEFAULT NULL,
+            `id_telecomunicaciones`                         varbinary(50) DEFAULT NULL,
+            `id`                                            int(11) NOT NULL AUTO_INCREMENT,
+            PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB AUTO_INCREMENT=344 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+        ";
+        $conn->query($create_inventario_sql);
+        echo "✅ Tabla '$nombre_tabla' creada correctamente....";
+        echo '';
+    } else {
+        echo "🛠 La tabla '$nombre_tabla' ya existe. Aplicando modificaciones...";
+        echo '';
+        $alter_inventario_sqls = [
+            // --- Reconfirmación de definiciones para todas las columnas ---
+            // Incluye CHARSET y COLLATE solo para tipos de cadena (VARCHAR, TEXT, MEDIUMTEXT)
+            "MODIFY COLUMN `codigo_cliente`                 VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL",
+            "MODIFY COLUMN `id_telecomunicaciones`          VARBINARY(50) DEFAULT NULL",
+            "MODIFY COLUMN `id`                             INT(11) NOT NULL AUTO_INCREMENT",
+        ];
+
+        foreach ($alter_inventario_sqls as $sql) {
+            $conn->query("ALTER TABLE $nombre_tabla $sql");
+        }
+
+        echo "✅ Estructura de la tabla '$nombre_tabla' actualizada exitosamente...";
+        echo '';  
+    }
+            
+    echo "✅ ✅ ESTRUCTURA BD PROCESADA CORRECTAMENTE ✅ ✅...";
+    echo '';
+    $conn->close();
+
+} catch (mysqli_sql_exception $e) {
+    die("❌ Error de conexión o SQL: " . $e->getMessage());
+}
+?>

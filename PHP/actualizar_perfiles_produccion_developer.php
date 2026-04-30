@@ -142,37 +142,166 @@
         echo "No se encontraron datos o hubo error en 'seguridad_users'.<br>" . PHP_EOL;
     }
 
-    // --- INICIO MIGRACIÓN: TABLA seguridad_users_groups ---
+    // --- INICIO MIGRACIÓN OPTIMIZADA: TABLA seguridad_users_groups ---
+        $sql_select_users_groups = "SELECT login, group_id FROM seguridad_users_groups";
+        $resultado_users_groups = $conn_prod->query($sql_select_users_groups);
 
-    $sql_select_users_groups = "SELECT login, group_id FROM seguridad_users_groups";
-    $resultado_users_groups = $conn_prod->query($sql_select_users_groups);
+        if ($resultado_users_groups && $resultado_users_groups->num_rows > 0) {
+            // 1. Limpiar tabla destino
+            $conn_dev->query("DELETE FROM seguridad_users_groups");
+            echo "Tabla 'seguridad_users_groups' en Developer limpiada.<br>" . PHP_EOL;
 
-    if ($resultado_users_groups && $resultado_users_groups->num_rows > 0) {
-        // 1. Limpiar tabla destino
-        $conn_dev->query("DELETE FROM seguridad_users_groups");
-        echo "Tabla 'seguridad_users_groups' en Developer limpiada.<br>" . PHP_EOL;
+            // 2. Configuración de Lotes (Batch)
+            $batch_size = 500; // Tamaño del lote (ajustable según memoria)
+            $rows_to_insert = [];
+            $total_processed = 0;
 
-        // 2. Preparar inserción (s = string para login, i = integer para group_id)
-        $sql_insert_users_groups = "INSERT INTO seguridad_users_groups (login, group_id) VALUES (?, ?)";
-        $stmt_ug = $conn_dev->prepare($sql_insert_users_groups);
+            // Desactivar autocommit para mayor velocidad
+            $conn_dev->autocommit(FALSE);
 
-        if ($stmt_ug) {
             while ($row = $resultado_users_groups->fetch_assoc()) {
-                // "si" indica que el primer parámetro es String y el segundo es Integer
-                $stmt_ug->bind_param("si", $row['login'], $row['group_id']);
-                $stmt_ug->execute();
-            }
-            echo "Datos migrados correctamente a 'seguridad_users_groups': " . $resultado_users_groups->num_rows . " filas procesadas.<br>" . PHP_EOL;
-            $stmt_ug->close();
-        }
-    } else {
-        echo "No se encontraron datos o hubo error en 'seguridad_users_groups'.<br>" . PHP_EOL;
-    }
+                // Escapar valores para evitar inyecciones en la construcción manual
+                $login = $conn_dev->real_escape_string($row['login']);
+                $group_id = (int)$row['group_id'];
+                
+                $rows_to_insert[] = "('$login', $group_id)";
+                $total_processed++;
 
+                // Cuando alcanzamos el tamaño del lote, ejecutamos la inserción
+                if (count($rows_to_insert) >= $batch_size) {
+                    $sql_batch = "INSERT INTO seguridad_users_groups (login, group_id) VALUES " . implode(', ', $rows_to_insert);
+                    $conn_dev->query($sql_batch);
+                    $rows_to_insert = []; // Limpiar buffer
+                }
+            }
+
+            // Insertar los registros restantes que no completaron el último lote
+            if (!empty($rows_to_insert)) {
+                $sql_batch = "INSERT INTO seguridad_users_groups (login, group_id) VALUES " . implode(', ', $rows_to_insert);
+                $conn_dev->query($sql_batch);
+            }
+
+            // Confirmar cambios
+            $conn_dev->commit();
+            $conn_dev->autocommit(TRUE);
+
+            echo "Datos migrados correctamente a 'seguridad_users_groups' (por lotes): " . $total_processed . " filas procesadas.<br>" . PHP_EOL;
+
+        } else {
+            echo "No se encontraron datos o hubo error en 'seguridad_users_groups'.<br>" . PHP_EOL;
+        }
+
+    // --- INICIO MIGRACIÓN OPTIMIZADA: TABLA seguridad_apps ---
+        $sql_select_apps_list = "SELECT app_name, app_type, description, modulo, proceso FROM seguridad_apps";
+        $resultado_apps_list = $conn_prod->query($sql_select_apps_list);
+
+        if ($resultado_apps_list && $resultado_apps_list->num_rows > 0) {
+            // 1. Limpiar tabla destino
+            $conn_dev->query("DELETE FROM seguridad_apps");
+            echo "Tabla 'seguridad_apps' en Developer limpiada.<br>" . PHP_EOL;
+
+            // 2. Configuración de Lotes (Batch)
+            $batch_size = 500; 
+            $rows_to_insert = [];
+            $total_processed = 0;
+
+            // Desactivar autocommit para máxima velocidad
+            $conn_dev->autocommit(FALSE);
+
+            while ($row = $resultado_apps_list->fetch_assoc()) {
+                // Sanitización y manejo de NULLs para evitar errores en PHP 8.1+
+                $app_name    = $conn_dev->real_escape_string($row['app_name'] ?? '');
+                $app_type    = $conn_dev->real_escape_string($row['app_type'] ?? '');
+                $description = $conn_dev->real_escape_string($row['description'] ?? '');
+                $modulo      = isset($row['modulo']) ? (int)$row['modulo'] : "NULL";
+                $proceso     = isset($row['proceso']) ? (int)$row['proceso'] : "NULL";
+                
+                // Construcción de la fila
+                // Nota: modulo y proceso van sin comillas si son números o la palabra NULL
+                $rows_to_insert[] = "('$app_name', '$app_type', '$description', $modulo, $proceso)";
+                $total_processed++;
+
+                // Ejecutar el lote cuando se alcance el tamaño definido
+                if (count($rows_to_insert) >= $batch_size) {
+                    $sql_batch = "INSERT INTO seguridad_apps (app_name, app_type, description, modulo, proceso) VALUES " . implode(', ', $rows_to_insert);
+                    $conn_dev->query($sql_batch);
+                    $rows_to_insert = []; 
+                }
+            }
+
+            // Insertar registros restantes
+            if (!empty($rows_to_insert)) {
+                $sql_batch = "INSERT INTO seguridad_apps (app_name, app_type, description, modulo, proceso) VALUES " . implode(', ', $rows_to_insert);
+                $conn_dev->query($sql_batch);
+            }
+
+            // Confirmar transacción
+            $conn_dev->commit();
+            $conn_dev->autocommit(TRUE);
+
+            echo "Datos migrados correctamente a 'seguridad_apps': " . $total_processed . " filas procesadas.<br>" . PHP_EOL;
+
+        } else {
+            echo "No se encontraron datos o hubo error en 'seguridad_apps'.<br>" . PHP_EOL;
+        }
+
+    // --- INICIO MIGRACIÓN OPTIMIZADA: TABLA seguridad_groups_apps ---
+        $sql_select_apps = "SELECT group_id, app_name, priv_access, priv_insert, priv_delete, priv_update, priv_export, priv_print FROM seguridad_groups_apps";
+        $resultado_apps = $conn_prod->query($sql_select_apps);
+
+         // ... (código anterior igual)
+
+        if ($resultado_apps && $resultado_apps->num_rows > 0) {
+            $conn_dev->query("DELETE FROM seguridad_groups_apps");
+            echo "Tabla 'seguridad_groups_apps' en Developer limpiada.<br>" . PHP_EOL;
+
+            $batch_size = 500; 
+            $rows_to_insert = [];
+            $total_processed = 0;
+
+            // IMPORTANTE: No desactivamos autocommit globalmente si vamos a manejar lotes manuales
+            // o simplemente hacemos commit en cada lote.
+
+            while ($row = $resultado_apps->fetch_assoc()) {
+                $group_id    = (int)$row['group_id'];
+                $app_name    = $conn_dev->real_escape_string($row['app_name'] ?? '');
+                $priv_access = $conn_dev->real_escape_string($row['priv_access'] ?? 'N');
+                $priv_insert = $conn_dev->real_escape_string($row['priv_insert'] ?? 'N');
+                $priv_delete = $conn_dev->real_escape_string($row['priv_delete'] ?? 'N');
+                $priv_update = $conn_dev->real_escape_string($row['priv_update'] ?? 'N');
+                $priv_export = $conn_dev->real_escape_string($row['priv_export'] ?? 'N');
+                $priv_print  = $conn_dev->real_escape_string($row['priv_print'] ?? 'N');
+                
+                $rows_to_insert[] = "($group_id, '$app_name', '$priv_access', '$priv_insert', '$priv_delete', '$priv_update', '$priv_export', '$priv_print')";
+                $total_processed++;
+
+                if (count($rows_to_insert) >= $batch_size) {
+                    $sql_batch = "INSERT INTO seguridad_groups_apps (group_id, app_name, priv_access, priv_insert, priv_delete, priv_update, priv_export, priv_print) VALUES " . implode(', ', $rows_to_insert);
+                    
+                    $conn_dev->query($sql_batch);
+                    // EN GALERA: Confirmamos cada lote para no exceder wsrep_max_ws_rows
+                    $conn_dev->commit(); 
+                    
+                    $rows_to_insert = []; 
+                }
+            }
+
+            // Insertar el último remanente
+            if (!empty($rows_to_insert)) {
+                $sql_batch = "INSERT INTO seguridad_groups_apps (group_id, app_name, priv_access, priv_insert, priv_delete, priv_update, priv_export, priv_print) VALUES " . implode(', ', $rows_to_insert);
+                $conn_dev->query($sql_batch);
+                $conn_dev->commit();
+            }
+
+            echo "Datos migrados correctamente a 'seguridad_groups_apps': " . $total_processed . " filas procesadas.<br>" . PHP_EOL;
+        }
+    
     // --- INICIO MIGRACIÓN: TABLA configuracion_modulos_maestro ---
 
     // Verificar y reconectar si es necesario
-    if (!$conn_prod->ping()) {
+    // mysqli::ping() is deprecated in PHP 8.1+. Use a simple query to check connection.
+    $result = $conn_prod->query("SELECT 1");
+    if (!$result) {
         $conn_prod = new mysqli($host_prod, $user_prod, $pass_prod, $db_prod);
         if ($conn_prod->connect_error) {
             die("Error de reconexión Producción: " . $conn_prod->connect_error);
@@ -180,7 +309,8 @@
     }
 
     $sql_select_maestro = "SELECT id_modulo_maestro, descripcion FROM configuracion_modulos_maestro";
-    $resultado_maestro = $conn_prod->query($sql_select_maestro);
+
+        $resultado_maestro = $conn_prod->query($sql_select_maestro);
 
     if ($resultado_maestro && $resultado_maestro->num_rows > 0) {
         // 1. Limpiar tabla destino
