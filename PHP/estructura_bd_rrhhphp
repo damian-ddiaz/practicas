@@ -1,4 +1,6 @@
 <?php
+// necesito crear una bd para recursos humanos, que me permita administrar, los siguientes datos: registros de empleados, registros de profesiones, registros de cargos, registros de departamentos, registros de tipos de nomina, la cual puedes ser Semanal, Quincenal, o Mensual, ademas del manejar la parte de nomina, es decir, conceptos de nomina los cuales pueden ser aignacion o deduccion
+
 // This script restructures the database to ensure all decimal fields are defined correctly.
 // Damian Diaz
 $host = '127.0.0.1';
