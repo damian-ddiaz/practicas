@@ -6,7 +6,7 @@
 $host = '127.0.0.1';
 $user = 'root';
 $pass = 'Gemelas2000#';
-$target_db = 'webservices';
+$target_db = 'rrhhtest';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 try {

@@ -1,0 +1,113 @@
+- Servicio de Internet
+    Formulario: asignar_serviciosV3
+    Evento Onload: 
+        Agregar al Principio:
+        [codigo_producto_anterior] = {codigo_producto};
+
+        sc_lookup(rs_conf_prod, "SELECT id FROM configuracion_factura WHERE id_servicio = '{id_servicio_cliente}'");
+
+        if (isset({rs_conf_prod[0][0]})){
+            $idConf = {rs_conf_prod[0][0]};
+        }
+
+        // CAPTURANDO NIVEL DE PRECIO DEL SERVICIO ANTERIOR - Damian Diaz - 03-06-2026
+        sc_lookup_field(tip_precio, "select codigo_producto, tipo_precio
+        from configuracion_factura_productos where codigo_producto = '[codigo_producto_anterior]' and empresa = '[usr_empresa]' and sucursal = '[usr_sucursal]' and id_configuracion_factura = $idConf");
+
+
+        if(isset({tip_precio[0]['codigo_producto']})) { // NO EXISTE UN SERVICIO EN LA CONFIGURACION
+            [par_tipo_precio] = {tip_precio[0]['tipo_precio']};
+        }else{ // SI EXISTE UN SERVICIO EN LA CONFIGURACION
+            [par_tipo_precio] = 'precio1_productos';	
+        }
+
+    Evento onAftereUpdate:
+        Agregar al Final:
+        // ELIMINANDO CODIGO ANTERIOR - Damian Diaz - 03-06-2026
+        sc_exec_sql("delete from configuracion_factura_productos where 
+        codigo_producto = '[codigo_producto_anterior]' and empresa = '[usr_empresa]' 
+        and sucursal = '[usr_sucursal]' and id_configuracion_factura = $idConf");
+
+        sc_exec_sql("delete from configuracion_factura_productos where codigo_producto = '[codigo_producto_anterior]' and empresa = '[usr_empresa]' and sucursal = '[usr_sucursal]' and id_configuracion_factura = $idConf");
+
+        // BUSCANDO PRODUCTO - Damian Diaz - 03-06-2026
+        sc_lookup_field(producto, "select
+        ip.nombre_productos,
+        ip.impuesto_productos,
+        ip.costo_ultimo_productos as costo,
+        case '[par_tipo_precio]'
+            when 'precio1_productos' then ip.precio1_productos
+            when 'precio2_productos' then ip.precio2_productos
+            when 'precio3_productos' then ip.precio3_productos
+            else ip.precio1_productos
+        end as precio_seleccionado,
+        ci.valor_iva as porc_iva
+        from
+        inventario_productos ip
+        left join configuracion_iva ci
+        on ci.codigo_iva = ip.impuesto_productos
+        where
+        ip.codigo_productos = '$var_codigo_producto'
+        and ip.empresa = '[usr_empresa]'
+        and ip.sucursal = '[usr_sucursal]'
+        and ci.empresa = '[usr_empresa]'
+        and ci.sucursal = '[usr_sucursal]'");
+
+        $var_nombre_productos = {producto[0]['nombre_productos']};
+        $var_precio_unitario = {producto[0]['precio_seleccionado']};
+        $var_porc_iva 		 = {producto[0]['porc_iva']};
+        $var_monto_iva		 = round(($var_precio_unitario * $var_porc_iva) /100,2);
+        $var_costo 		 	 = {producto[0]['costo']};
+
+        // ip - fecha
+        $var_ip_estacion 	= {ip_estacion};
+        $var_fecha_registro = {fecha_registro};
+
+
+        // INSERTANDO EL NUEVO CODIGO
+
+        // 1. Hacemos la operación matemática primero en PHP de forma segura
+        $var_total_renglon = $var_precio_unitario + $var_monto_iva;
+
+        // 2. Ejecutamos el INSERT con las comillas y comentarios corregidos
+        sc_exec_sql("INSERT INTO `configuracion_factura_productos` (
+            `id_configuracion_factura`,
+            `codigo_producto`,
+            `descripcion`,
+            `cantidad`,
+            `tipo_precio`,
+            `precio_unitario`,
+            `porc_iva`,
+            `iva_monto`,
+            `porc_desc`,
+            `desc_monto`,
+            `total`,
+            `total_renglon`,
+            `costo`,
+            `usuario`,
+            `empresa`,
+            `sucursal`,
+            `fecha`,
+            `ip_estacion`
+        )
+        VALUES
+        (
+            $idConf,
+            '$var_codigo_producto',
+            '$var_nombre_productos',
+            1,
+            '[par_tipo_precio]',
+            $var_precio_unitario,
+            $var_porc_iva,
+            $var_monto_iva,
+            0,
+            0,
+            $var_precio_unitario,
+            $var_total_renglon,
+            $var_costo,
+            '[usr_login]',
+            '[usr_empresa]',
+            '[usr_sucursal]',
+            '$var_fecha_registro',
+            '$var_ip_estacion'
+        )");

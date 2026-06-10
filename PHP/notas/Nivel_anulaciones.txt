@@ -1,0 +1,43 @@
+Aumentar a nivel 8 los procesos de ANULACIONES para las siguientees Operaciones.
+    /* Codigo del Boton ANUALR */
+    sc_lookup_field(regla_negocio, "select empresa, valor from configuracion_reglas_de_negocio where empresa = '[usr_empresa]' 
+    and nombre_variable = 'anular_documentos_solo_nivel_8'");
+
+    if({regla_negocio[0]['valor']} == 'NO'){// Regla Desactivada NO
+        codigo
+    }else{ // Regla Activada SI
+        if([usr_nivel] < 8){ // NO POSEES NIVEL
+            $mensaje = 'No posee el nivel necesario para poder ANULAR esta transaccion';
+            sc_ajax_message ("$mensaje", "Advertencia");
+        }else{	// SI POSEEE NIVEL
+            codigo
+        }
+    }
+
+
+Crear Regla "Permitir Anular Documentos solo usuarios con Nivel 8"
+            anular_documentos_solo_nivel_8
+
+    1.- Modulo de Cuentas por Pagar CXP
+        Compras
+        - form_compras_resumen_beta *
+        Pagos a Proveddores
+        - pago_resumen_proveedor_vista *
+        Nota de Credito
+        - cxp_nota_de_credito_ver *
+        Nota de Debito
+        - cxp_nota_de_debito_ver * 
+    
+    2,- Modulo Administrativo
+        - Notidicaciones de Cobro 
+            Cobranza - cobros_resumen_cliente *
+        - Notas de Credito 
+
+        - Facturas Fiscales 
+          facturacion_venta_resumen_formulario 
+            Boton Anular Fact. Digital * 
+            Boton Anular* 
+
+        - Registrar Pagos 
+
+

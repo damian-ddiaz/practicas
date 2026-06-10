@@ -2,12 +2,12 @@
 
 // 1. Variables de configuración
 $var_id_modulo_maestro = 15;
-/* Variables para ajustar colores */
 $var_table_back_color = "#7D7C7C";
 $var_table_fore_color = "#212020";
 
-
 // --- PROCESAMIENTO AJAX (INICIO) ---
+
+// AJAX: Cargar Aplicaciones por Grupo
 if (isset($_GET['ajax_fetch_apps'])) 
 {
     $group_id = (isset($_GET['ajax_group_id'])) ? (int)$_GET['ajax_group_id'] : 0;
@@ -34,8 +34,7 @@ if (isset($_GET['ajax_fetch_apps']))
     exit; 
 }
 
-// AJAX para obtener el log con FILTROS REFINADOS
-// AJAX para obtener el log con FILTROS REFINADOS (CORREGIDO)
+// AJAX: Obtener Log con FILTROS y PAGINACIÓN DE 9
 if (isset($_GET['ajax_fetch_log'])) 
 {
     $app_name   = (isset($_GET['app_name'])) ? $_GET['app_name'] : '';
@@ -43,6 +42,11 @@ if (isset($_GET['ajax_fetch_log']))
     $filtro_usu = (isset($_GET['f_usu']) && $_GET['f_usu'] != '') ? $_GET['f_usu'] : '';
     $f_desde    = (isset($_GET['f_desde']) && $_GET['f_desde'] != '') ? $_GET['f_desde'] : '';
     $f_hasta    = (isset($_GET['f_hasta']) && $_GET['f_hasta'] != '') ? $_GET['f_hasta'] : '';
+    
+    // Configuración de Paginación
+    $pagina      = (isset($_GET['page'])) ? (int)$_GET['page'] : 1;
+    $por_pagina  = 9;
+    $inicio      = ($pagina - 1) * $por_pagina;
 
     $where_extra = "";
     if ($filtro_suc != '') {
@@ -51,16 +55,22 @@ if (isset($_GET['ajax_fetch_log']))
     if ($filtro_usu != '') {
         $where_extra .= " AND SUBSTRING_INDEX(scl.username, 'Usu: ', -1) = '$filtro_usu'";
     }
-    
-    // --- NUEVO: Validación de Rango de Fechas ---
     if ($f_desde != '') {
         $where_extra .= " AND scl.inserted_date >= '$f_desde 00:00:00'";
     }
     if ($f_hasta != '') {
         $where_extra .= " AND scl.inserted_date <= '$f_hasta 23:59:59'";
     }
-    // --------------------------------------------
     
+    // 1. Contar total de registros para calcular páginas
+    $sql_count = "SELECT COUNT(*) FROM sc_log_inventario scl 
+                  WHERE scl.application = '$app_name' 
+                  AND SUBSTRING_INDEX(SUBSTRING_INDEX(scl.username, 'Emp: ', -1), '-', 1) = '[usr_empresa]'
+                  $where_extra";
+    sc_lookup(ds_count, $sql_count);
+    $total_registros = (isset({ds_count[0][0]})) ? {ds_count[0][0]} : 0;
+
+    // 2. Obtener los 9 registros de la página actual
     $sql_log = "SELECT 
                     scl.inserted_date, 
                     sc.descripcion as nombre_sucursal,
@@ -74,196 +84,106 @@ if (isset($_GET['ajax_fetch_log']))
                 WHERE scl.application = '$app_name'
                 AND SUBSTRING_INDEX(SUBSTRING_INDEX(scl.username, 'Emp: ', -1), '-', 1) = '[usr_empresa]'
                 $where_extra 
-                ORDER BY scl.inserted_date DESC";
+                ORDER BY scl.inserted_date DESC
+                LIMIT $inicio, $por_pagina";
     
     sc_lookup(ds_log, $sql_log);
     
-    $res_log = array();
+    $res_data = array();
     if (!empty({ds_log})) {
         foreach ({ds_log} as $f) {
-            $res_log[] = array(
-                'date' => $f[0],
-                'suc'  => $f[1],
-                'user' => $f[2],
-                'ip'   => $f[3],
-                'act'  => $f[4],
-                'desc' => $f[5]
+            $res_data[] = array(
+                'date' => $f[0], 'suc' => $f[1], 'user' => $f[2],
+                'ip'   => $f[3], 'act' => $f[4], 'desc' => $f[5]
             );
         }
     }
     
     while (ob_get_level()) { ob_end_clean(); }
     header('Content-Type: application/json');
-    echo json_encode($res_log);
+	echo json_encode([
+		'data'          => $res_data,
+		'total_pages'   => ceil($total_records / 9),
+		'current_page'  => $pagina,
+		'total_records' => $total_records
+	]);
     exit;
 }
-// --- FIN PROCESAMIENTO AJAX ---
 
-// 2. CARGA DE DATOS PARA SELECTORES INICIALES
-$sql_grupos = "SELECT group_id, description FROM seguridad_groups WHERE modulo = " . $var_id_modulo_maestro;
+// 2. CARGA INICIAL (SELECTORES)
+$sql_grupos = "SELECT group_id, description FROM seguridad_groups WHERE modulo = $var_id_modulo_maestro";
 sc_lookup(ds_grupos, $sql_grupos);
 
-$sql_sucursales = "SELECT codigo, descripcion 
-FROM configuracion_sucursal 
-WHERE empresa = '[usr_empresa]' ORDER BY descripcion ASC";
+$sql_sucursales = "SELECT codigo, descripcion FROM configuracion_sucursal WHERE empresa = '[usr_empresa]' ORDER BY descripcion ASC";
 sc_lookup(ds_suc, $sql_sucursales);
 
-$sql_usuarios = "SELECT login, name FROM seguridad_users 
-WHERE codigo_empresa = '[usr_empresa]' ORDER BY name ASC";
+$sql_usuarios = "SELECT login, name FROM seguridad_users WHERE codigo_empresa = '[usr_empresa]' ORDER BY name ASC";
 sc_lookup(ds_usu, $sql_usuarios);
 ?>
 
-<!-- INTERFAZ HTML Y JAVASCRIPT -->
 <style>
-	
-		/* Contenedor para alinear botones en una fila */
-	.button-row {
-		display: flex;
-		gap: 10px;
-		margin-top: 10px;
-	}
+    .main-container { display: flex; gap: 20px; padding: 20px; font-family: 'Segoe UI', Tahoma, sans-serif; background: #f8f9fa; min-height: 100vh; }
+    .selectors-column { flex: 0 0 300px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); height: fit-content; }
+    .table-column { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    
+    .filter-group { margin-bottom: 15px; }
+    .filter-group label { display:block; font-weight:600; margin-bottom:5px; font-size: 13px; color: #495057; }
+    .filter-group select, .filter-group input { width:100%; padding:8px; border:1px solid #ced4da; border-radius:4px; font-size: 13px; }
 
-	/* Ajuste al botón de búsqueda para que comparta el espacio */
-	.btn-search {
-		margin-top: 0;
-		flex: 1;
-		/* Aseguramos que la altura sea consistente */
-		height: 45px; 
-		padding: 0 12px;
-	}
+    .button-row { display: flex; gap: 10px; margin-top: 15px; }
+    .btn-search { flex: 1; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-exit { flex: 0 0 100px; padding: 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
+    
+    .log-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    .log-table th { background: <?php echo $var_table_back_color; ?>; color: <?php echo $var_table_fore_color; ?>; padding: 10px; text-align: left; }
+    .log-table td { padding: 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+    
+    .badge-action { padding: 3px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+    .action-access { background: #d4edda; color: #155724; }
+    .action-update { background: #fff3cd; color: #856404; }
 
-	/* Estilo específico para el botón Salir (basado en tu imagen) */
-	.btn-exit {
-		margin-top: 10px;
-		flex: 0 0 120px;
-		/* Ajustamos la altura igual a la de btn-search */
-		height: 45px; 
-		padding: 0 12px;
-
-		/* Gris más oscuro (puedes probar con #ced4da o #adb5bd) */
-		background-color: #ced4da; 
-		color: #212529;
-		border: 1px solid #adb5bd;
-
-		border-radius: 4px;
-		cursor: pointer;
-		font-weight: bold;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 5px;
-		transition: background 0.3s;
-	}
-
-	.btn-exit:hover {
-		background-color: #adb5bd; /* Tono más oscuro al pasar el mouse */
-	}
-
-    .main-container { 
+    /* Estilos Paginación */
+	/*
+    .pagination-container { 
 		display: flex; 
-		gap: 30px; 
-		padding: 30px; 
-		font-family: sans-serif; 
-		background-color: #f4f7f6; 
-		min-height: 100vh; 
-	}
-    .selectors-column { 
-		flex: 0 0 320px; 
+		justify-content: center; 
+		align-items: center; 
+		gap: 15px; 
+		margin-top: 20px; 
+		padding-top: 15px; 
+		border-top: 1px solid #eee; 
+	}*/
+	.pagination-container { 
+		display: flex; 
+		justify-content: center; 
+		align-items: center; 
+		gap: 15px; 
+		margin-top: 20px; 
+		padding: 15px; /* Aumentado para que el fondo luzca mejor */
+		border-top: 1px solid #eee;
+		border-radius: 4px; 
+	}	
+	
+    .btn-page { 
+		padding: 5px 12px; 
+		border: 1px solid #dee2e6; 
 		background: white; 
-		padding: 20px; 
-		border-radius: 8px; 
-		box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-		height: fit-content; 
-	}
-    .table-column { 
-		flex: 1; background: 
-		white; padding: 20px; 
-		border-radius: 8px; 
-		box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
-		overflow-x: auto; 
-	}
-    
-    .filter-group { 
-		margin-bottom: 15px; 
-	}
-    .filter-group label { 
-		display:block; 
-		font-weight:bold; 
-		margin-bottom:6px; 
-		color: #34495e; 
-		font-size: 14px; 
-	}
-    .filter-group select { 
-		width:100%; 
-		padding:10px; 
-		border:1px solid #dcdde1; 
-		border-radius:4px; 
-		outline: none; 
-		transition: border 0.3s; 
-	}
-    .filter-group select:focus {
-    	 border-color: #3498db; 
-	}
-
-    .log-table { 
-		width: 100%; 
-		border-collapse: collapse; 
-		font-size: 13px; 
-	}
-	
-    .log-table th { 
-	   background-color: <?php echo $var_table_back_color; ?>;
-       color: <?php echo $var_table_fore_color; ?>; 
-	   text-align: left; 
-	   padding: 12px 10px; 
-	}
-	
-    .log-table td { 
-		padding: 12px 10px; 
-		border-bottom: 1px solid #eee; 
-	}
-	
-    .log-table tr:hover { 
-		background-color: #f9f9f9; 
-	}
-    
-    .badge-action { 
-		padding: 4px 8px; 
-		border-radius: 4px; 
-		font-weight: bold; 
-		text-transform: uppercase; 
-		font-size: 11px; 
-	}
-	
-    .action-access { 
-		background: #e8f5e9; 
-		color: #2e7d32;
-	}
-    .action-update { 
-		background: #fff3e0; 
-		color: #ef6c00; 
-	}
-    .btn-search { 
-		width: 100%; 
-		padding: 12px; 
-		background: #3498db; 
-		color: white; 
-		border: none; 
-		border-radius: 4px; 
 		cursor: pointer; 
-		font-weight: bold; 
-		margin-top: 10px; 
+		border-radius: 4px; 
+		background-color: #007bff; 
+		color: white; 
 	}
 	
-    .btn-search:hover {
-    	 background: #2980b9; 
+    .btn-page:disabled { 
+		background: #e9ecef; 
+		cursor: not-allowed; 
+		color: #adb5bd; 
 	}
-	
 </style>
 
 <div class="main-container">
     <div class="selectors-column">
-        <h3 style="margin-top:0; color:#2c3e50; border-bottom: 2px solid #3498db; padding-bottom:10px;">Filtros de Auditoría</h3>
+        <h3 style="margin:0 0 15px 0; font-size:18px; color:#333;">Auditoría</h3>
         
         <div class="filter-group">
             <label>Grupo de Seguridad:</label>
@@ -271,9 +191,7 @@ sc_lookup(ds_usu, $sql_usuarios);
                 <option value="">-- Seleccione --</option>
                 <?php
                 if (!empty({ds_grupos})) {
-                    foreach ({ds_grupos} as $g) {
-                        echo "<option value='{$g[0]}'>{$g[1]}</option>";
-                    }
+                    foreach ({ds_grupos} as $g) echo "<option value='{$g[0]}'>{$g[1]}</option>";
                 }
                 ?>
             </select>
@@ -281,79 +199,66 @@ sc_lookup(ds_usu, $sql_usuarios);
 
         <div class="filter-group">
             <label>Aplicación:</label>
-            <select id="sel_apps" disabled onchange="fn_check_ready()">
-                <option value="">-- Primero elija grupo --</option>
+            <select id="sel_apps" disabled>
+                <option value="">-- Seleccione Grupo --</option>
             </select>
         </div>
 
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-
         <div class="filter-group">
-            <label>Sucursal (Opcional):</label>
+            <label>Sucursal:</label>
             <select id="f_suc">
-                <option value="">-- Todas las sucursales --</option>
+                <option value="">-- Todas --</option>
                 <?php
                 if (!empty({ds_suc})) {
-                    foreach ({ds_suc} as $s) {
-                        echo "<option value='{$s[0]}'>{$s[1]}</option>";
-                    }
+                    foreach ({ds_suc} as $s) echo "<option value='{$s[0]}'>{$s[1]}</option>";
                 }
                 ?>
             </select>
         </div>
 
         <div class="filter-group">
-            <label>Usuario (Opcional):</label>
+            <label>Usuario:</label>
             <select id="f_usu">
-                <option value="">-- Todos los usuarios --</option>
+                <option value="">-- Todos --</option>
                 <?php
                 if (!empty({ds_usu})) {
-                    foreach ({ds_usu} as $u) {
-                        echo "<option value='{$u[0]}'>{$u[1]}</option>";
-                    }
+                    foreach ({ds_usu} as $u) echo "<option value='{$u[0]}'>{$u[1]}</option>";
                 }
                 ?>
             </select>
         </div>
-		
-		<!-- Agregar debajo del select de Usuario -->
-		<div class="filter-group">
-			<label>Rango de Fechas:</label>
-			<div style="display: flex; gap: 5px;">
-				<input type="date" id="f_desde" style="width:50%; padding:8px; border:1px solid #dcdde1; border-radius:4px;">
-				<input type="date" id="f_hasta" style="width:50%; padding:8px; border:1px solid #dcdde1; border-radius:4px;">
-			</div>
-		</div>
 
-      <!-- <button class="btn-search" onclick="fn_get_log()">BUSCAR REGISTROS</button> -->
-	
-	 <div class="button-row">
-		<button class="btn-search" onclick="fn_get_log()">BUSCAR REGISTROS</button>
-		<!--<button class="btn-exit" onclick="window.close();">
-			<span>&#10142;</span> Salir
-		</button>-->
-		 <button class="btn-exit" onclick="fn_salir_modulo()">
-			<span>&#10142;</span> Salir
-		</button>	 
-	 </div>		
+        <div class="filter-group">
+            <label>Desde / Hasta:</label>
+            <div style="display: flex; gap: 5px;">
+                <input type="date" id="f_desde">
+                <input type="date" id="f_hasta">
+            </div>
+        </div>
+
+        <div class="button-row">
+            <button class="btn-search" onclick="fn_get_log(1)">BUSCAR</button>
+            <button class="btn-exit" onclick="fn_salir_modulo()">Salir</button>
+        </div>
     </div>
 
     <div class="table-column">
         <div id="log_container">
-            <p style="color: #666; font-style: italic; text-align: center; margin-top: 50px;">Use los filtros de la izquierda para consultar el historial.</p>
+            <p style="text-align:center; color:#999; margin-top:50px;">Seleccione filtros para comenzar.</p>
         </div>
     </div>
 </div>
 
 <script>
+let current_page = 1;
+
 function fn_get_apps(id) {
     const target = document.getElementById('sel_apps');
     if (!id) {
         target.disabled = true;
-        target.innerHTML = '<option value="">-- Primero elija grupo --</option>';
+        target.innerHTML = '<option value="">-- Seleccione Grupo --</option>';
         return;
     }
-    
     fetch(window.location.origin + window.location.pathname + '?ajax_fetch_apps=1&ajax_group_id=' + id)
         .then(r => r.json())
         .then(data => {
@@ -361,108 +266,92 @@ function fn_get_apps(id) {
             target.innerHTML = '<option value="">-- Seleccione Aplicación --</option>';
             data.forEach(i => {
                 let o = document.createElement('option');
-                o.value = i.app_name;
-                o.textContent = i.app_name;
+                o.value = o.textContent = i.app_name;
                 target.appendChild(o);
             });
         });
 }
 
-function fn_get_log() {
-    const appName = document.getElementById('sel_apps').value;
-    const suc = document.getElementById('f_suc').value;
-    const usu = document.getElementById('f_usu').value;
-    
-    // --- CORRECCIÓN: Captura de fechas ---
-    const desde = document.getElementById('f_desde').value;
-    const hasta = document.getElementById('f_hasta').value;
-    // -------------------------------------
+function fn_get_log(page = 1) {
+    current_page = page;
+    const app = document.getElementById('sel_apps').value;
+    if (!app) { alert("Seleccione una aplicación."); return; }
 
     const container = document.getElementById('log_container');
+    container.innerHTML = '<p style="text-align:center;">Cargando...</p>';
 
-    if (!appName) {
-        alert("Por favor, seleccione un Grupo de Seguridad y una Aplicación.");
-        return;
-    }
-
-    container.innerHTML = '<div style="text-align:center; padding:50px;">Cargando registros...</div>';
-    
     const params = new URLSearchParams({
         ajax_fetch_log: 1,
-        app_name: appName,
-        f_suc: suc,
-        f_usu: usu,
-        // --- CORRECCIÓN: Envío de fechas al servidor ---
-        f_desde: desde,
-        f_hasta: hasta
-        // -----------------------------------------------
+        app_name: app,
+        f_suc: document.getElementById('f_suc').value,
+        f_usu: document.getElementById('f_usu').value,
+        f_desde: document.getElementById('f_desde').value,
+        f_hasta: document.getElementById('f_hasta').value,
+        page: page
     });
 
     fetch(window.location.origin + window.location.pathname + '?' + params.toString())
         .then(r => r.json())
-        .then(data => {
-            if (data && data.length > 0) {
-                let html = `
-                    <table class="log-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 80px;">Fecha</th>
-                                <th style="width: 130px;">Sucursal</th>
-                                <th style="width: 100px;">Usuario</th>
-                                <th style="width: 40px; text-align: left;">IP</th>
-                                <th style="width: 40px; text-align: left;">Acción</th>
-                                <th>Descripción</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
+        .then(res => {
+            if (res.data && res.data.length > 0) {
+				let html = `<table class="log-table">
+					<thead>
+						<tr>
+							<th style="width: 80px; min-width: 80px;">Fecha/Hora</th>
+							<th style="width: 110px; min-width: 110px;">Sucursal</th>
+							<th style="width: 100px; min-width: 100px;">Usuario</th>
+							<th>IP</th>
+							<th>Acción</th>
+							<th>Descripción</th>
+						</tr>
+					</thead>
+					<tbody>`;
 
-                data.forEach(row => {
-                    let badgeClass = row.act === 'access' ? 'action-access' : (row.act === 'update' ? 'action-update' : '');
-
-                    // Separamos fecha y hora
-                    const [soloFecha, soloHora] = row.date.split(' ');
-
-                    html += `
-                        <tr>
-                            <td style="color:#e67e22; font-family: monospace; line-height: 1.2;">
-                                <div style="font-weight: bold;">${soloFecha}</div>
-                                <div style="font-size: 11px; color: #7f8c8d;">${soloHora}</div>
-                            </td>
-                            <td style="font-weight:bold; color:#34495e;">${row.suc || 'N/A'}</td>
-                            <td style="color:#27ae60;">${row.user || 'N/A'}</td>
-                            <td style="color:#2980b9; text-align: left;">${row.ip}</td>
-                            <td style="text-align: left;"><span class="badge-action ${badgeClass}">${row.act}</span></td>
-                            <td style="color:#7f8c8d; font-family:monospace; font-size:11px;">${row.desc || ''}</td>
-                        </tr>`;
+                res.data.forEach(row => {
+                    const [fecha, hora] = row.date.split(' ');
+                    const bCls = row.act === 'access' ? 'action-access' : (row.act === 'update' ? 'action-update' : '');
+                    html += `<tr>
+                        <td><strong>${fecha}</strong><br><small style="color:#888">${hora}</small></td>
+                        <td>${row.suc || '-'}</td>
+                        <td>${row.user || '-'}</td>
+                        <td>${row.ip}</td>
+                        <td><span class="badge-action ${bCls}">${row.act}</span></td>
+                        <td style="font-family:monospace; font-size:11px; color:#666;">${row.desc || ''}</td>
+                    </tr>`;
                 });
                 html += '</tbody></table>';
+				
+				// ... después de cerrar la tabla (</table>)
+				if (res.total_pages > 1) {
+					html += `
+					<div class="pagination-container" style="display: flex; justify-content: center; gap: 10px; padding: 20px;">
+						<button onclick="fn_get_log(${res.current_page - 1})" ${res.current_page == 1 ? 'disabled' : ''}> Anterior </button>
+						<span> Página ${res.current_page} de ${res.total_pages} </span>
+						<button onclick="fn_get_log(${res.current_page + 1})" ${res.current_page == res.total_pages ? 'disabled' : ''}> Siguiente </button>
+					</div>`;
+				}							
+
+                // Renderizar Paginación
+                html += `<div class="pagination-container">
+                    <button class="btn-page" onclick="fn_get_log(${res.current_page - 1})" ${res.current_page == 1 ? 'disabled' : ''}>&laquo; Anterior</button>
+                    <span style="font-size:13px;">Página <strong>${res.current_page}</strong> de ${res.total_pages} (${res.total_records} registros)</span>
+                    <button class="btn-page" onclick="fn_get_log(${res.current_page + 1})" ${res.current_page == res.total_pages ? 'disabled' : ''}>Siguiente &raquo;</button>
+                </div>`;
+
                 container.innerHTML = html;
             } else {
-                container.innerHTML = '<div style="padding:50px; border:1px dashed #ccc; text-align:center; color:#999;">No se encontraron registros con los filtros seleccionados.</div>';
+                container.innerHTML = '<p style="text-align:center; padding:20px;">No se encontraron registros.</p>';
             }
-        })
-        .catch(e => {
-            container.innerHTML = "Error al conectar con el servidor.";
-            console.error("Error en fetch:", e);
         });
 }
 
-function fn_check_ready() {
-    // Podrías disparar la búsqueda automática aquí si prefieres no usar el botón
-}
-	
 function fn_salir_modulo() {
-    // Si la app está abierta en un Iframe (dentro del menú de Scriptcase)
     if (window.parent && window.parent !== window) {
-        // Opción 1: Redirección forzada al padre para limpiar el frame
         window.parent.location.href = '../menu_inventario/menu_inventario.php'; 
     } else {
-        // Opción 2: Si por alguna razón se abrió en ventana aparte, intenta cerrar o volver
-        if (!window.close()) {
-            window.history.back();
-        }
+        if (!window.close()) window.history.back();
     }
-}	
+}
 </script>
 <?php
 
