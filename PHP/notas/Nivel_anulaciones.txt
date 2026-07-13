@@ -32,12 +32,16 @@ Crear Regla "Permitir Anular Documentos solo usuarios con Nivel 8"
         - Notidicaciones de Cobro 
             Cobranza - cobros_resumen_cliente *
         - Notas de Credito 
+          No existe boton de ANULAR
+
+        - Adelanto de Cuentas por Pagar 
+            documento_cliente_agregar *
 
         - Facturas Fiscales 
-          facturacion_venta_resumen_formulario 
+          facturacion_venta_resumen_formulario *
             Boton Anular Fact. Digital * 
-            Boton Anular* 
+            Boton Anular * 
 
-        - Registrar Pagos 
+        - Registrar Pagos NO Posee Boton de ANULAR
 
 
