@@ -9,13 +9,16 @@ $var_usr_login      = [usr_login];
 $var_ip_estacion    = $_SERVER['REMOTE_ADDR'];
 
 // --- ACCIÓN: Eliminar registro (POST) ---
-if (isset($_POST['action']) && $_POST['action'] == 'eliminar') {
+if (isset($_POST['action']) && ($_POST['action'] == 'insertar' || $_POST['action'] == 'actualizar')) {
     while (ob_get_level() > 0) { ob_end_clean(); }
-    $id = (int)$_POST['id'];
-    sc_exec_sql("DELETE FROM configuracion_municipio_clasificador WHERE id_clasificacion = $id AND empresa = '$usr_empresa_global'");
-    header('Content-Type: application/json');
-    echo json_encode(['status' => 'success']);
-    exit;
+    
+    // VALIDACIÓN: Verificar que ningún campo esté vacío
+    if (empty($_POST['nombre']) || empty($_POST['tipo_prod']) || $_POST['id_proveedor'] == "0" || 
+        empty($_POST['codigo_productos']) || empty($_POST['fecha_inicio']) || $_POST['impuesto'] === "") {
+        header('Content-Type: application/json');
+        echo json_encode(['status' => 'error', 'message' => 'Todos los campos son obligatorios.']);
+        exit;
+    }
 }
 
 // --- ACCIÓN: Insertar o Actualizar registro (POST) ---
@@ -33,12 +36,12 @@ if (isset($_POST['action']) && ($_POST['action'] == 'insertar' || $_POST['action
     $v_imp     = (float)$_POST['impuesto'];
     
     $v_id_prov = (int)$_POST['id_proveedor'];
-    $v_id_prod = (int)$_POST['id_producto'];
+	$v_id_prod = sc_sql_injection($_POST['codigo_productos']);
     $v_f_ini   = sc_sql_injection($_POST['fecha_inicio']);
 
     if ($action == 'insertar') {
         $sql = "INSERT INTO configuracion_municipio_clasificador 
-                (empresa, codigo_estado, cod_municipio, nombre_clasificacion, codigo_tipo_productos, impuesto, usuario, ip_estacion, id_proveedor, id_producto, fecha_inicio_impuesto) 
+                (empresa, codigo_estado, cod_municipio, nombre_clasificacion, codigo_tipo_productos, impuesto, usuario, ip_estacion, id_proveedor, codigo_productos, fecha_inicio_impuesto) 
                 VALUES ('$v_emp', '$v_est', '$v_muni', $v_nom, $v_tipo, $v_imp, '$var_usr_login', '$var_ip_estacion', $v_id_prov, $v_id_prod, $v_f_ini)";
     } else {
         $sql = "UPDATE configuracion_municipio_clasificador 
@@ -46,7 +49,7 @@ if (isset($_POST['action']) && ($_POST['action'] == 'insertar' || $_POST['action
                     codigo_tipo_productos = $v_tipo, 
                     impuesto = $v_imp,
                     id_proveedor = $v_id_prov,
-                    id_producto = $v_id_prod,
+                    codigo_productos = $v_id_prod,
                     fecha_inicio_impuesto = $v_f_ini
                 WHERE id_clasificacion = $id AND empresa = '$v_emp'";
     }
@@ -75,35 +78,36 @@ if (isset($_GET['ajax_municipio']) && isset($_GET['estado_id'])) {
 						cmc.impuesto, 
 						cmc.codigo_tipo_productos, 
 						cmc.id_proveedor, 
-						cmc.id_producto, 
+						cmc.codigo_productos, 
 						cmc.fecha_inicio_impuesto,
 						pd.nombre_proveedor,
 						ip.nombre_productos
 					  FROM configuracion_municipio_clasificador cmc
 					  INNER JOIN inventario_tipo_productos itp ON itp.codigo_tipo_productos = cmc.codigo_tipo_productos AND itp.empresa = '$usr_emp'
 					  LEFT JOIN proveedores_datos pd ON cmc.id_proveedor = pd.id_proveedor AND pd.empresa = '$usr_emp'
-					  LEFT JOIN inventario_productos ip ON cmc.id_producto = ip.id_productos AND ip.empresa = '$usr_emp'
+					  LEFT JOIN inventario_productos ip ON cmc.codigo_productos = ip.codigo_productos AND ip.empresa = '$usr_emp'
 					  WHERE cmc.empresa = '$usr_emp' 
-					  AND cmc.codigo_estado = $est_id 
+					  AND cmc.codigo_estado = $est_id  
 					  AND cmc.cod_municipio = $muni_cod 
-					  GROUP BY cmc.id_clasificacion
-					  ORDER BY cmc.nombre_clasificacion ASC";
-
+  					  AND ip.empresa = '$usr_emp' 
+					  AND ip.producto_matriz = 'SI'
+					  GROUP BY cmc.id_clasificacion, ip.codigo_productos";
+	
     sc_lookup(ds_tabla, $sql_tabla);
     $datos_tabla = array();
     if (!empty({ds_tabla})) {
         foreach ({ds_tabla} as $fila) {
             $datos_tabla[] = array(
-                'id'          => $fila[0],
-                'nombre'      => $fila[1],
-                'tipo_nombre' => $fila[2],
-                'impuesto'    => $fila[3],
-                'tipo_cod'    => $fila[4],
-                'id_prov'     => $fila[5],
-                'id_prod'     => $fila[6],
-                'fecha_ini'   => $fila[7],
-                'nombre_prov' => ($fila[8] ? $fila[8] : "N/A"),
-                'nombre_prod' => ($fila[9] ? $fila[9] : "N/A")
+                'id'          			=> $fila[0],
+                'nombre'      			=> $fila[1],
+                'tipo_nombre' 			=> $fila[2],
+                'impuesto'    			=> $fila[3],
+                'tipo_cod'   			=> $fila[4],
+                'id_prov'     			=> $fila[5],
+                'codigo_productos'      => $fila[6],
+                'fecha_ini'   			=> $fila[7],
+                'nombre_prov' 			=> ($fila[8] ? $fila[8] : "N/A"),
+                'nombre_prod' 			=> ($fila[9] ? $fila[9] : "N/A")
             );
         }
     }
@@ -133,7 +137,7 @@ if (isset($_GET['ajax_estado'])) {
 sc_lookup(ds_estados, "SELECT codigo_estado, nombre FROM configuracion_estado WHERE iso3 = '$emp_pais_global' ORDER BY nombre ASC");
 sc_lookup(ds_tipos_prod, "SELECT nombre_tipo_productos, codigo_tipo_productos FROM inventario_tipo_productos WHERE empresa = '$usr_empresa_global' GROUP BY codigo_tipo_productos ORDER BY nombre_tipo_productos ASC");
 sc_lookup(ds_proveedores, "SELECT id_proveedor, nombre_proveedor FROM proveedores_datos WHERE empresa = '$usr_empresa_global' ORDER BY nombre_proveedor ASC");
-sc_lookup(ds_productos_list, "SELECT id_productos, nombre_productos FROM inventario_productos WHERE empresa = '$usr_empresa_global' ORDER BY nombre_productos ASC");
+sc_lookup(ds_productos_list, "SELECT codigo_productos, nombre_productos FROM inventario_productos WHERE empresa = '$usr_empresa_global' AND producto_matriz = 'SI' GROUP BY codigo_productos ORDER BY nombre_productos ASC");
 
 // =========================================================================
 // 2. VISTA HTML & CSS
@@ -148,6 +152,7 @@ echo '
     .main-title { font-weight: 700; color: #1e293b; font-size: 1.15rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
     .main-wrapper { display: flex; gap: 25px; padding: 10px; align-items: flex-start; }
     .table-container { flex: 1; background: #fff; border: 1px solid #dee2e6; border-radius: 5px; }
+	.info-icon { color: #17a2b8; cursor: help; margin-left: 5px; font-size: 0.9rem; font-weight: bold; }
     .table-header-custom { background-color: #34495e; color: #ffffff; font-size: 0.85rem; }
     .table td { font-size: 0.85rem; vertical-align: middle; }
 </style>
@@ -158,6 +163,7 @@ echo '
         <div class="card-selector"> 
             <div class="form-group">
                 <label>Estado:</label>
+				<span class="info-icon" data-toggle="tooltip" title="Selecciones el Estado, para posteriormente, seleccionar un Municipio.">(?)</span>
                 <select id="sel_estado" class="form-control" onchange="cargarMunicipios(this.value)">
                     <option value="">-- Seleccione Estado --</option>';
                     if (!empty({ds_estados})) {
@@ -167,6 +173,7 @@ echo '          </select>
             </div>
             <div class="form-group">
                 <label>Municipio:</label>
+				<span class="info-icon" data-toggle="tooltip" title="Debe seleccionar un Municipio.">(?)</span>
                 <select id="sel_municipio" class="form-control" onchange="cargarTablaClasificacion(this.value)">
                     <option value="">-- Seleccione un Municipio --</option>
                 </select>
@@ -184,11 +191,11 @@ echo '          </select>
                 <thead class="table-header-custom">
                     <tr>
                         <th>Clasificación</th>
-                        <th>Tipo Prod de Producto</th>
+                        <th>Tipo de Producto</th>
                         <th>Proveedor</th>
                         <th>Producto</th>
                         <th>Fecha Inicio Impuesto</th>
-                        <th class="text-right">Imp (%)</th>
+                        <th class="text-right">Impuesto (%)</th>
                         <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -211,11 +218,13 @@ echo '          </select>
                 <input type="hidden" id="ins_id" value="">
                 <div class="row">
                     <div class="col-md-6 form-group">
-                        <label>Nombre Clasificación</label>
+                        <label>Nombre Clasificación *</label>
+						<span class="info-icon" data-toggle="tooltip" title="Escriba el nombre de la clasificacion otorgada por el Municipio.">(?)</span>
                         <input type="text" id="ins_nombre" class="form-control">
                     </div>
                     <div class="col-md-6 form-group">
-                        <label>Tipo Productos</label>
+                        <label>Tipo Productos *</label>
+						<span class="info-icon" data-toggle="tooltip" title="Seleccione el tipo de productos que estara asociado a esta clasificacion.">(?)</span>
                         <select id="ins_tipo" class="form-control">
                             <option value="">-- Seleccione un tipo --</option>';
                             if (!empty({ds_tipos_prod})) {
@@ -226,7 +235,8 @@ echo '                  </select>
                 </div>
                 <div class="row">
 					<div class="col-md-4 form-group">
-						<label>Proveedor</label>
+						<label>Proveedor *</label>
+						<span class="info-icon" data-toggle="tooltip" title="Seleccione el proveedor asociado a este impuesto, contra el cual se realizara el gasto">(?)</span>
 						<select id="ins_id_proveedor" class="form-control">
 							<option value="0">-- Seleccione Proveedor --</option>';
 							if (!empty({ds_proveedores})) {
@@ -237,9 +247,10 @@ echo '                  </select>
 					echo '</select>
 					</div>
 					<div class="col-md-4 form-group">
-						<label>Producto</label>
-						<select id="ins_id_producto" class="form-control">
-							<option value="0">-- Seleccione Producto --</option>';
+						<label>Producto *</label>
+						<span class="info-icon" data-toggle="tooltip" title="Seleccione el producto de inventario, el cual estara vinculado al auxiliar contable">(?)</span>
+						<select id="ins_codigo_productos" class="form-control">
+							<option value="">-- Seleccione Producto --</option>';
 							if (!empty({ds_productos_list})) {
 								foreach({ds_productos_list} as $prod) { 
 									echo "<option value='".$prod[0]."'>".$prod[1]."</option>"; 
@@ -248,13 +259,15 @@ echo '                  </select>
 					echo '</select>
 					</div>
                     <div class="col-md-4 form-group">
-                        <label>Fecha Inicio Impuesto</label>
+                        <label>Fecha Inicio Impuesto *</label>
+						<span class="info-icon" data-toggle="tooltip" title="Fecha exacta en la que empieza la vigencia del impuesto.">(?)</span>
                         <input type="date" id="ins_fecha_inicio" class="form-control">
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-md-6 form-group">
-                        <label>Impuesto (%)</label>
+                        <label>Impuesto (%)*</label>
+						<span class="info-icon" data-toggle="tooltip" title="Ingrese el valor porcentual (ej: 1.00). No incluya el símbolo %.">(?)</span>
                         <input type="number" step="0.01" id="ins_impuesto" class="form-control">
                     </div>
                 </div>
@@ -285,15 +298,21 @@ function cargarTablaClasificacion(cod_municipio) {
     let tbody = document.getElementById("tbody_clasificacion");
     let estado_id = document.getElementById("sel_estado").value;
     if (!cod_municipio) return;
+    
     tbody.innerHTML = "<tr><td colspan=\'7\' class=\'text-center\'>Cargando...</td></tr>";
 
     fetch(getUrlLimpia() + "?ajax_municipio=" + cod_municipio + "&estado_id=" + estado_id)
         .then(res => res.json())
         .then(data => {
             tbody.innerHTML = "";
-            if(data.length === 0) { tbody.innerHTML = "<tr><td colspan=\'7\' class=\'text-center\'>Sin datos</td></tr>"; return; }
+            if(data.length === 0) { 
+                tbody.innerHTML = "<tr><td colspan=\'7\' class=\'text-center\'>Sin datos</td></tr>"; 
+                return; 
+            }
+            
             data.forEach(item => {
                 let itemSafe = JSON.stringify(item).replace(/"/g, \'&quot;\');
+                
                 tbody.innerHTML += `<tr>
 					<td>${item.nombre}</td>
 					<td>${item.tipo_nombre}</td>
@@ -309,6 +328,15 @@ function cargarTablaClasificacion(cod_municipio) {
 					</td>
 				</tr>`;
             });
+
+            // Inicializar tooltips después de cargar la tabla dinámicamente
+            if (window.jQuery && $.fn.tooltip) {
+                $("[data-toggle=\'tooltip\']").tooltip();
+            }
+        })
+        .catch(err => {
+            console.error("Error cargando tabla:", err);
+            tbody.innerHTML = "<tr><td colspan=\'7\' class=\'text-center text-danger\'>Error al cargar datos</td></tr>";
         });
 }
 
@@ -319,7 +347,7 @@ function abrirModalNuevo() {
     document.getElementById("ins_tipo").value = "";
     document.getElementById("ins_impuesto").value = "0.00";
     document.getElementById("ins_id_proveedor").value = "0";
-    document.getElementById("ins_id_producto").value = "0";
+    document.getElementById("ins_codigo_productos").value = "";
     document.getElementById("ins_fecha_inicio").value = "";
     $(".modal-title").text("Nuevo Registro");
     $("#modalNuevo").modal("show");
@@ -331,7 +359,7 @@ function prepararEdicion(item) {
     document.getElementById("ins_tipo").value = item.tipo_cod;
     document.getElementById("ins_impuesto").value = item.impuesto;
     document.getElementById("ins_id_proveedor").value = item.id_prov;
-    document.getElementById("ins_id_producto").value = item.id_prod;
+    document.getElementById("ins_codigo_productos").value = item.codigo_productos;
     document.getElementById("ins_fecha_inicio").value = item.fecha_ini;
     $(".modal-title").text("Editar Registro");
     $("#modalNuevo").modal("show");
@@ -347,39 +375,69 @@ function eliminarRegistro(id) {
 }
 
 function guardarRegistro() {
-    let id = document.getElementById("ins_id").value;
-    let nom = document.getElementById("ins_nombre").value;
-    let imp = document.getElementById("ins_impuesto").value;
-    let tip = document.getElementById("ins_tipo").value;
-    let prov = document.getElementById("ins_id_proveedor").value;
-    let prod = document.getElementById("ins_id_producto").value;
-    let fini = document.getElementById("ins_fecha_inicio").value;
+    // 1. Captura de valores de los inputs del modal
+    let id    = document.getElementById("ins_id").value;
+    let nom   = document.getElementById("ins_nombre").value.trim();
+    let tip   = document.getElementById("ins_tipo").value;
+    let prov  = document.getElementById("ins_id_proveedor").value;
+    let prod  = document.getElementById("ins_codigo_productos").value;
+    let fini  = document.getElementById("ins_fecha_inicio").value;
+    let imp   = document.getElementById("ins_impuesto").value;
 
-    if (!nom || imp === "" || !tip) return alert("Los campos Nombre, Tipo e Impuesto son obligatorios");
+    // 2. Captura de IDs de contexto (Estado y Municipio seleccionados en la vista principal)
+    let est_id   = document.getElementById("sel_estado").value;
+    let muni_cod = document.getElementById("sel_municipio").value;
 
+    // 3. Validación de campos obligatorios (Backend y Frontend coinciden)
+    if (!nom || !tip || prov === "0" || !prod || !fini || imp === "") {
+        return alert("Error: Todos los campos marcados con (*) son obligatorios.");
+    }
+
+    // 4. Preparación de los datos para el envío (FormData)
     let formData = new FormData();
     formData.append("action", id ? "actualizar" : "insertar");
     if (id) formData.append("id", id);
-    formData.append("estado_id", document.getElementById("sel_estado").value);
-    formData.append("muni_cod", document.getElementById("sel_municipio").value);
+    
+    formData.append("estado_id", est_id);
+    formData.append("muni_cod", muni_cod);
     formData.append("nombre", nom);
     formData.append("tipo_prod", tip);
-    formData.append("impuesto", imp);
     formData.append("id_proveedor", prov);
-    formData.append("id_producto", prod);
+    formData.append("codigo_productos", prod);
     formData.append("fecha_inicio", fini);
+    formData.append("impuesto", imp);
 
-    fetch(getUrlLimpia(), { method: "POST", body: formData })
+    // 5. Envío mediante Fetch API
+    fetch(getUrlLimpia(), { 
+        method: "POST", 
+        body: formData 
+    })
     .then(res => res.json())
     .then(data => {
         if (data.status === "success") {
+            // Cerrar el modal de Bootstrap
             $("#modalNuevo").modal("hide");
-            cargarTablaClasificacion(document.getElementById("sel_municipio").value);
+            
+            // Recargar la tabla con el municipio actual para ver los cambios
+            cargarTablaClasificacion(muni_cod);
+            
+            // Opcional: mensaje de éxito breve en consola
+            console.log("Registro guardado correctamente");
         } else {
-            alert("Error: " + data.message);
+            // Mostrar error devuelto por el servidor (ej. error de SQL)
+            alert("Error del sistema: " + data.message);
         }
-    }).catch(e => console.error(e));
+    })
+    .catch(e => {
+        console.error("Error en la petición:", e);
+        alert("Error crítico: No se pudo conectar con el servidor.");
+    });
 }
+
+// Inicialización de tooltips al cargar la página
+$(document).ready(function() {
+    $("[data-toggle=\'tooltip\']").tooltip();
+});
 </script>
 ';
 ?>
