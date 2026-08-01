@@ -6,6 +6,95 @@ $current_url  = $_SERVER['PHP_SELF'];
 
 $duplicate_error_msg = ""; 
 
+// --- LÓGICA PARA ELIMINAR TIPO DE PAGO CON VALIDACIÓN ---
+// --- LÓGICA PARA ELIMINAR TIPO DE PAGO CON VALIDACIÓN ---
+if (isset($_GET['action']) && $_GET['action'] == 'delete_tipo') {
+    $id_del = sc_sql_injection($_GET['id_tipo']);
+
+    // 1. Obtenemos el código_tipo_pago
+    sc_lookup(ds_temp, "SELECT codigo_tipo_pago FROM banco_tipo_pago WHERE id_banco_tipo_pago = $id_del");
+    
+    if (isset($ds_temp[0][0])) {
+        $codigo_tipo = $ds_temp[0][0];
+
+        // 2. Validamos si existen registros asociados
+        sc_lookup(ds_check, "SELECT COUNT(*) FROM banco_formas_pago 
+                             WHERE empresa='$usr_empresa' 
+                             AND sucursal = '$usr_sucursal' 
+                             AND codigo_tipo_pago = '$codigo_tipo'");
+
+        if ($ds_check[0][0] > 0) {
+            // ERROR: Existen registros asociados - Mostrar SweetAlert y redirigir con JS
+            echo "<script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>";
+            echo "<body><script>
+                Swal.fire({
+                    title: 'No se puede eliminar',
+                    text: 'Existen formas de pago asociadas a este tipo.',
+                    icon: 'error'
+                }).then(() => { window.location.href = '$current_url'; });
+            </script></body>";
+            exit;
+        } else {
+            // OK: Procedemos a eliminar
+            sc_exec_sql("DELETE FROM banco_tipo_pago WHERE id_banco_tipo_pago = $id_del");
+            // Redirección limpia mediante JS para evitar pantalla en blanco por headers
+            echo "<body><script>window.location.href = '$current_url';</script></body>";
+            exit;
+        }
+    }
+}
+
+
+// --- LÓGICA PARA ELIMINAR FORMA DE PAGO CON VALIDACIÓN CRUZADA ---
+if (isset($_GET['action']) && $_GET['action'] == 'delete_forma') {
+    $id_f_del = sc_sql_injection($_GET['id_forma']);
+
+    // 1. Obtenemos los códigos necesarios (Tipo y Forma) para la validación
+    sc_lookup(ds_f_info, "SELECT codigo_tipo_pago, codigo_formas_pago FROM banco_formas_pago WHERE id_banco_formas_pago = $id_f_del");
+    
+    if (isset($ds_f_info[0][0])) {
+        $c_tp = $ds_f_info[0][0]; // codigo_tipo_pago
+        $c_fp = $ds_f_info[0][1]; // codigo_formas_pago
+
+        // 2. Ejecutamos la validación en Ventas y Compras
+        $sql_valida = "SELECT 
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM ventas_transacciones_detalles 
+                    WHERE empresa = '$usr_empresa' AND sucursal = '$usr_sucursal' 
+                      AND tipo_pago = '$c_tp' AND forma_pago = '$c_fp'
+                ) 
+                OR EXISTS (
+                    SELECT 1 FROM compras_transacciones_detalles 
+                    WHERE empresa = '$usr_empresa' AND sucursal = '$usr_sucursal' 
+                      AND tipo_pago = '$c_tp' AND forma_pago = '$c_fp'
+                ) 
+                THEN '1' ELSE '0'
+            END";
+        
+        sc_lookup(ds_res, $sql_valida);
+
+        if ($ds_res[0][0] == '1') {
+            // ERROR: La forma de pago ya ha sido utilizada en transacciones
+            echo "<body><script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
+            <script>
+                Swal.fire({
+                    title: 'No se puede eliminar',
+                    text: 'Esta forma de pago ya tiene movimientos registrados en el sistema.',
+                    icon: 'error'
+                }).then(() => { window.location.href = '$current_url'; });
+            </script></body>";
+            exit;
+        } else {
+            // OK: No hay registros, procedemos a eliminar
+            sc_exec_sql("DELETE FROM banco_formas_pago WHERE id_banco_formas_pago = $id_f_del");
+            echo "<body><script>window.location.href = '$current_url';</script></body>";
+            exit;
+        }
+    }
+}
+
+
 // --- LOGICA AJAX 1: CARGAR TABLA PRINCIPAL ---
 if (isset($_GET['ajax_mode'])) {
     while (ob_get_level()) ob_end_clean(); 
@@ -43,9 +132,10 @@ if (isset($_GET['ajax_mode'])) {
                 <td class='text-center'><span class='badge-custom $badge'>{$ds->fields[3]}</span></td>
                 <td style='color:#007bff; font-weight:500; font-size:0.9rem;'>".implode(", ", $vis)."</td>
                 <td class='text-center'>
-                    <button class='btn-action btn-view' title='Ver Formas' onclick='toggleSubTable(this, \"{$ds->fields[1]}\", {$f_id})'><i class='fas fa-eye'></i></button>
-                    <button class='btn-action btn-edit' onclick='editRow($json)'><i class='fas fa-pencil-alt'></i></button>
-                    <button class='btn-action btn-delete' onclick='confirmDelete({$f_id})'><i class='fas fa-times'></i></button>
+                    <button class='btn btn-sm btn-outline-success' title='Ver Formas' onclick='toggleSubTable(this, \"{$ds->fields[1]}\", {$f_id})'><i class='fas fa-eye'></i></button>
+                    <button class='btn btn-sm btn-outline-primary mr-1' onclick='editRow($json)'><i class='fas fa-pencil-alt'></i></button>
+                    <button class='btn btn-sm btn-outline-danger'
+ onclick='confirmDelete({$f_id})'><i class='fas fa-trash'></i></button>
                 </td>
             </tr>
             <tr id='child_{$f_id}' class='row-child' style='display:none;'><td colspan='5'><div id='container_{$f_id}'></div></td></tr>";
@@ -113,11 +203,41 @@ if (isset($_GET['get_formas_pago'])) {
     exit;
 }
 
+// 1. PROCESAMIENTO TIPO DE PAGO (Guardado)
+if (isset($_POST['btn_save_tipo'])) {
+    $id_t  = $_POST['t_id_pk'];
+    $cod   = sc_sql_injection($_POST['t_codigo']);
+    $nom   = sc_sql_injection($_POST['t_nombre']);
+    $est   = sc_sql_injection($_POST['t_estatus']);
+    
+    // Captura de visibilidad (Checkboxes/Sliders)
+    $v_cli = isset($_POST['t_v_cli']) ? 1 : 0;
+    $v_sop = isset($_POST['t_v_sop']) ? 1 : 0;
+    $v_ali = isset($_POST['t_v_ali']) ? 1 : 0;
+    $v_adm = isset($_POST['t_v_adm']) ? 1 : 0;
+
+    if (empty($id_t)) {
+        // INSERTAR NUEVO TIPO
+        $sql = "INSERT INTO banco_tipo_pago (codigo_tipo_pago, nombre_tipo_pago, estatus, empresa, sucursal, visible_cliente, visible_soporte, visible_aliado, visible_adm) 
+                VALUES ($cod, $nom, $est, '$usr_empresa', '$usr_sucursal', $v_cli, $v_sop, $v_ali, $v_adm)";
+    } else {
+        // ACTUALIZAR EXISTENTE
+        $sql = "UPDATE banco_tipo_pago 
+                SET codigo_tipo_pago=$cod, nombre_tipo_pago=$nom, estatus=$est, visible_cliente=$v_cli, visible_soporte=$v_sop, visible_aliado=$v_ali, visible_adm=$v_adm 
+                WHERE id_banco_tipo_pago=" . sc_sql_injection($id_t);
+    }
+    
+    sc_exec_sql($sql);
+    header("Location: ".$current_url); 
+    exit;
+}
+
+
 // 2. PROCESAMIENTO CRUD (Guardado)
 if (isset($_POST['btn_save_forma'])) {
     $id_f = $_POST['f_id_pk'];
     $c_tp = sc_sql_injection($_POST['f_codigo_tipo_pago']);
-    $c_fp = sc_sql_injection($_POST['f_codigo_formas_pago']);
+    $c_fp = sc_sql_injection($_POST['f_codigo_formas_pago']); // codigo_formas_pago
     $n_fp = sc_sql_injection($_POST['f_nombre_formas_pago']);
     
     // Captura estricta para evitar errores de sintaxis
@@ -182,7 +302,18 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
         body { background-color: #f8f9fa; padding: 20px; font-family: 'Segoe UI', sans-serif; }
         .main-card { border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); background: #fff; }
         .table thead th { background-color: #2d3e50; color: #fff; padding: 12px; }
-        .badge-custom { border-radius: 4px; padding: 6px 12px; font-weight: 700; color: #fff; }
+		
+     /*   .badge-custom { border-radius: 4px; padding: 6px 12px; font-weight: 700; color: #fff; }*/
+		.badge-custom { 
+			border-radius: 4px; 
+			padding: 6px 12px; 
+			font-weight: 700; 
+			color: #fff; 
+			display: inline-block; /* Permite aplicar un ancho fijo */
+			width: 120px;           /* Ajusta este valor al ancho que desees */
+			text-align: center;    /* Centra el texto dentro del badge */
+		}
+		
         .bg-activo { background-color: #28a745; } .bg-inactivo { background-color: #dc3545; }
         .ios-switch { position: relative; display: inline-block; width: 44px; height: 22px; }
         .ios-switch input { opacity: 0; width: 0; height: 0; }
@@ -252,13 +383,39 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
                         </select>
                     </div>
                     <hr>
-                    <label class="small font-weight-bold">VISIBILIDAD</label>
-                    <div class="row">
-                        <div class="col-6"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="t_v_cli" name="t_v_cli"><label class="custom-control-label" for="t_v_cli">Clientes</label></div></div>
-                        <div class="col-6"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="t_v_sop" name="t_v_sop"><label class="custom-control-label" for="t_v_sop">Soporte</label></div></div>
-                        <div class="col-6"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="t_v_ali" name="t_v_ali"><label class="custom-control-label" for="t_v_ali">Aliados</label></div></div>
-                        <div class="col-6"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="t_v_adm" name="t_v_adm"><label class="custom-control-label" for="t_v_adm">Administración</label></div></div>
-                    </div>
+                   
+					<hr>
+					<label class="small font-weight-bold">CONFIGURACIÓN DE VISIBILIDAD</label>
+					<div class="row text-center">
+						<div class="col-3">
+							<label class="small d-block">Clientes</label>
+							<label class="ios-switch">
+								<input type="checkbox" name="t_v_cli" id="t_v_cli">
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div class="col-3">
+							<label class="small d-block">Soporte</label>
+							<label class="ios-switch">
+								<input type="checkbox" name="t_v_sop" id="t_v_sop">
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div class="col-3">
+							<label class="small d-block">Aliados</label>
+							<label class="ios-switch">
+								<input type="checkbox" name="t_v_ali" id="t_v_ali">
+								<span class="slider"></span>
+							</label>
+						</div>
+						<div class="col-3">
+							<label class="small d-block">Admin.</label>
+							<label class="ios-switch">
+								<input type="checkbox" name="t_v_adm" id="t_v_adm">
+								<span class="slider"></span>
+							</label>
+						</div>
+					</div>					
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cerrar</button>
@@ -380,16 +537,21 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
         $('#modalTipoPago').modal('show');
     }
 
-    function confirmDelete(id) {
+	function confirmDelete(id) {
         Swal.fire({ 
             title: '¿Borrar Tipo de Pago?', 
-            text: "Esto podría afectar a las formas de pago asociadas.",
+            text: "Esta acción no se puede deshacer.",
             icon: 'warning', 
             showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
             confirmButtonText: 'Sí, borrar',
             cancelButtonText: 'Cancelar'
         }).then((r) => { 
-            if (r.isConfirmed) window.location.href = myAppUrl + '?action=delete_tipo&id_tipo=' + id; 
+            if (r.isConfirmed) {
+                // Al presionar Sí, recargamos la página con los parámetros de acción
+                window.location.href = myAppUrl + '?action=delete_tipo&id_tipo=' + id;
+            }
         });
     }
 
@@ -454,17 +616,20 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 		$('#modalFormaPago').modal('show');
 	}
 
-    function confirmDeleteForma(id) {
-        Swal.fire({ 
-            title: '¿Borrar Forma de Pago?', 
-            icon: 'warning', 
-            showCancelButton: true,
-            confirmButtonText: 'Sí, borrar',
-            cancelButtonText: 'Cancelar'
-        }).then((r) => { 
-            if (r.isConfirmed) window.location.href = myAppUrl + '?action=delete_forma&id_forma=' + id; 
-        });
-    }
+	function confirmDeleteForma(id) {
+		Swal.fire({ 
+			title: '¿Borrar Forma de Pago?', 
+			text: "Se validará si tiene movimientos antes de borrar.",
+			icon: 'warning', 
+			showCancelButton: true,
+			confirmButtonColor: '#dc3545',
+			confirmButtonText: 'Sí, borrar'
+		}).then((r) => { 
+			if (r.isConfirmed) {
+				window.location.href = myAppUrl + '?action=delete_forma&id_forma=' + id;
+			}
+		});
+	}
 </script>
 </body>
 </html>
