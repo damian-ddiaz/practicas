@@ -1,4 +1,3 @@
-<?php
 // =========================================================================
 // 1. CONTROLADORES AJAX (Al inicio del Blank)
 // =========================================================================
@@ -116,16 +115,22 @@ if (isset($_GET['ajax_cargar_tabla'])) {
 // 2. CONSULTAS PARA LLENAR SELECTORES
 // =========================================================================
 sc_lookup(ds_prov, "SELECT id_proveedor, nombre_proveedor FROM proveedores_datos WHERE empresa = '$usr_empresa_global' ORDER BY nombre_proveedor ASC");
-sc_lookup(ds_prod, "SELECT codigo_productos, nombre_productos FROM inventario_productos 
-WHERE empresa = '$usr_empresa_global' AND producto_matriz = 'SI' 
-GROUP BY codigo_productos
-ORDER BY nombre_productos ASC");
+
+sc_lookup(ds_prod, "SELECT ip.codigo_productos, ip.nombre_productos 
+	FROM inventario_productos ip 
+	LEFT JOIN inventario_tipo_productos itp ON itp.codigo_tipo_productos = ip.codigo_tiposerv_productos
+	WHERE ip.empresa = '$usr_empresa_global' AND ip.producto_matriz = 'SI' 
+	AND itp.empresa = '$usr_empresa_global'
+	AND itp.maneja_stock = 'SI'
+	GROUP BY ip.codigo_productos
+	ORDER BY ip.nombre_productos ASC");
 
 // =========================================================================
 // 3. VISTA HTML & CSS
 // =========================================================================
 echo '
 <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
@@ -276,12 +281,14 @@ function cargarTabla() {
                 <td class="text-left">${item.fecha_ini || "---"}</td>
                 <td class="text-center"><span class="badge ${colorClase} badge-frec">${item.frecuencia}</span></td>
                 <td class="text-right font-weight-bold text-primary">${parseFloat(item.tasa).toFixed(2)}%</td>
-                <td class="text-center">
-                    <div class="btn-group">
-                        <button class="btn btn-sm btn-outline-primary" onclick="prepararEdicion(${itemSafe})">✎</button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="eliminarRegistro(${item.id})">×</button>
-                    </div>
-                </td>
+				<td class="text-center">
+					<button class="btn btn-sm btn-outline-primary mr-1" title="Editar" onclick="prepararEdicion(${itemSafe})">
+						<i class="fas fa-pencil-alt"></i>
+					</button>
+					<button class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="eliminarRegistro(${item.id})">
+						<i class="fas fa-trash"></i>
+					</button>
+				</td>
             </tr>`;
         });
         // Reinicializar tooltips para nuevos elementos
@@ -364,4 +371,3 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 ';
-?>

@@ -1,4 +1,3 @@
-<?php
 // =========================================================================
 // 1. CONTROLADORES AJAX (Deben estar al extremo inicio del Blank)
 // =========================================================================
@@ -61,6 +60,20 @@ if (isset($_POST['action']) && ($_POST['action'] == 'insertar' || $_POST['action
 
     header('Content-Type: application/json');
     echo json_encode(['status' => empty($error_sql) ? 'success' : 'error', 'message' => $error_sql]);
+    exit;
+}
+
+// --- ACCIÓN: Eliminar registro (POST) ---
+if (isset($_POST['action']) && $_POST['action'] == 'eliminar') {
+    while (ob_get_level() > 0) { ob_end_clean(); }
+    $id = (int)$_POST['id'];
+    
+    // Ejecutar la eliminación
+    sc_exec_sql("DELETE FROM configuracion_municipio_clasificador 
+                WHERE id_clasificacion = $id AND empresa = '$usr_empresa_global'");
+    
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'success']);
     exit;
 }
 
@@ -137,13 +150,25 @@ if (isset($_GET['ajax_estado'])) {
 sc_lookup(ds_estados, "SELECT codigo_estado, nombre FROM configuracion_estado WHERE iso3 = '$emp_pais_global' ORDER BY nombre ASC");
 sc_lookup(ds_tipos_prod, "SELECT nombre_tipo_productos, codigo_tipo_productos FROM inventario_tipo_productos WHERE empresa = '$usr_empresa_global' GROUP BY codigo_tipo_productos ORDER BY nombre_tipo_productos ASC");
 sc_lookup(ds_proveedores, "SELECT id_proveedor, nombre_proveedor FROM proveedores_datos WHERE empresa = '$usr_empresa_global' ORDER BY nombre_proveedor ASC");
+/*
 sc_lookup(ds_productos_list, "SELECT codigo_productos, nombre_productos FROM inventario_productos WHERE empresa = '$usr_empresa_global' AND producto_matriz = 'SI' GROUP BY codigo_productos ORDER BY nombre_productos ASC");
+*/
+
+sc_lookup(ds_productos_list, "SELECT ip.codigo_productos, ip.nombre_productos 
+	FROM inventario_productos ip 
+	LEFT JOIN inventario_tipo_productos itp ON itp.codigo_tipo_productos = ip.codigo_tiposerv_productos
+	WHERE ip.empresa = '$usr_empresa_global' AND ip.producto_matriz = 'SI' 
+	AND itp.empresa = '$usr_empresa_global'
+	AND itp.maneja_stock = 'SI'
+	GROUP BY ip.codigo_productos
+	ORDER BY ip.nombre_productos ASC");
 
 // =========================================================================
 // 2. VISTA HTML & CSS
 // =========================================================================
 echo '
 <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
 
@@ -155,6 +180,14 @@ echo '
 	.info-icon { color: #17a2b8; cursor: help; margin-left: 5px; font-size: 0.9rem; font-weight: bold; }
     .table-header-custom { background-color: #34495e; color: #ffffff; font-size: 0.85rem; }
     .table td { font-size: 0.85rem; vertical-align: middle; }
+	
+	.info-icon { 
+		color: #17a2b8; 
+		cursor: help; 
+		margin-left: 5px; 
+		font-size: 0.9rem; 
+		font-weight: bold; 
+	}
 </style>
 
 <div class="main-wrapper">
@@ -163,7 +196,7 @@ echo '
         <div class="card-selector"> 
             <div class="form-group">
                 <label>Estado:</label>
-				<span class="info-icon" data-toggle="tooltip" title="Selecciones el Estado, para posteriormente, seleccionar un Municipio.">(?)</span>
+				<span class="info-icon" data-toggle="tooltip" title="Seleccione el Estado para filtrar los municipios disponibles.">(?)</span>
                 <select id="sel_estado" class="form-control" onchange="cargarMunicipios(this.value)">
                     <option value="">-- Seleccione Estado --</option>';
                     if (!empty({ds_estados})) {
@@ -173,7 +206,7 @@ echo '          </select>
             </div>
             <div class="form-group">
                 <label>Municipio:</label>
-				<span class="info-icon" data-toggle="tooltip" title="Debe seleccionar un Municipio.">(?)</span>
+				<span class="info-icon" data-toggle="tooltip" title="Seleccione el Municipio para cargar las actividades y alícuotas configuradas.">(?)</span>				
                 <select id="sel_municipio" class="form-control" onchange="cargarTablaClasificacion(this.value)">
                     <option value="">-- Seleccione un Municipio --</option>
                 </select>
@@ -184,7 +217,7 @@ echo '          </select>
     <div class="table-container">
         <div class="p-3 bg-light d-flex justify-content-between align-items-center border-bottom">
             <span class="font-weight-bold">📋 Clasificador de Actividades</span>
-            <button class="btn btn-success btn-sm" onclick="abrirModalNuevo()">+ Nuevo Registro</button>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNuevo()">+ Nuevo Registro</button>
         </div>
         <div class="table-responsive p-3">
             <table class="table table-bordered table-striped m-0">
@@ -219,12 +252,12 @@ echo '          </select>
                 <div class="row">
                     <div class="col-md-6 form-group">
                         <label>Nombre Clasificación *</label>
-						<span class="info-icon" data-toggle="tooltip" title="Escriba el nombre de la clasificacion otorgada por el Municipio.">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Ingrese el nombre de la actividad económica o clasificación según la ordenanza municipal.">(?)</span>
                         <input type="text" id="ins_nombre" class="form-control">
                     </div>
                     <div class="col-md-6 form-group">
                         <label>Tipo Productos *</label>
-						<span class="info-icon" data-toggle="tooltip" title="Seleccione el tipo de productos que estara asociado a esta clasificacion.">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Seleccione el grupo de productos que estarán sujetos a esta clasificación.">(?)</span>				
                         <select id="ins_tipo" class="form-control">
                             <option value="">-- Seleccione un tipo --</option>';
                             if (!empty({ds_tipos_prod})) {
@@ -236,7 +269,7 @@ echo '                  </select>
                 <div class="row">
 					<div class="col-md-4 form-group">
 						<label>Proveedor *</label>
-						<span class="info-icon" data-toggle="tooltip" title="Seleccione el proveedor asociado a este impuesto, contra el cual se realizara el gasto">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Proveedor asociado a quien se le pagará el tributo resultante.">(?)</span>						
 						<select id="ins_id_proveedor" class="form-control">
 							<option value="0">-- Seleccione Proveedor --</option>';
 							if (!empty({ds_proveedores})) {
@@ -248,7 +281,7 @@ echo '                  </select>
 					</div>
 					<div class="col-md-4 form-group">
 						<label>Producto *</label>
-						<span class="info-icon" data-toggle="tooltip" title="Seleccione el producto de inventario, el cual estara vinculado al auxiliar contable">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Producto de inventario que actuará como auxiliar contable para el registro del gasto.">(?)</span>
 						<select id="ins_codigo_productos" class="form-control">
 							<option value="">-- Seleccione Producto --</option>';
 							if (!empty({ds_productos_list})) {
@@ -260,14 +293,14 @@ echo '                  </select>
 					</div>
                     <div class="col-md-4 form-group">
                         <label>Fecha Inicio Impuesto *</label>
-						<span class="info-icon" data-toggle="tooltip" title="Fecha exacta en la que empieza la vigencia del impuesto.">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Fecha en la cual entra en vigencia este porcentaje de impuesto.">(?)</span>						
                         <input type="date" id="ins_fecha_inicio" class="form-control">
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-md-6 form-group">
                         <label>Impuesto (%)*</label>
-						<span class="info-icon" data-toggle="tooltip" title="Ingrese el valor porcentual (ej: 1.00). No incluya el símbolo %.">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Alícuota porcentual aplicable (ejemplo: 1.50). No incluya el símbolo %.">(?)</span>
                         <input type="number" step="0.01" id="ins_impuesto" class="form-control">
                     </div>
                 </div>
@@ -320,11 +353,14 @@ function cargarTablaClasificacion(cod_municipio) {
 					<td>${item.nombre_prod}</td>
 					<td>${item.fecha_ini || "---"}</td>
 					<td class="text-right">${parseFloat(item.impuesto).toFixed(2)}%</td>
+
 					<td class="text-center">
-						<div class="btn-group">
-							<button class="btn btn-sm btn-outline-primary" onclick="prepararEdicion(${itemSafe})">✎</button>
-							<button class="btn btn-sm btn-outline-danger" onclick="eliminarRegistro(${item.id})">×</button>
-						</div>
+						<button class="btn btn-sm btn-outline-primary mr-1" title="Editar" onclick="prepararEdicion(${itemSafe})">
+							<i class="fas fa-pencil-alt"></i>
+						</button>
+						<button class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="eliminarRegistro(${item.id})">
+							<i class="fas fa-trash"></i>
+						</button>
 					</td>
 				</tr>`;
             });
@@ -440,4 +476,3 @@ $(document).ready(function() {
 });
 </script>
 ';
-?>
