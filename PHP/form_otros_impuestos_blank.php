@@ -24,7 +24,6 @@ if (isset($_POST['action']) && ($_POST['action'] == 'insertar' || $_POST['action
     $action    = $_POST['action'];
     $id        = isset($_POST['id']) ? (int)$_POST['id'] : 0;
     
-    // Validación de campos vacíos en el servidor
     if (empty($_POST['nombre_impuesto']) || $_POST['impuesto'] === "" || empty($_POST['frecuencia']) || empty($_POST['fecha_inicio']) || $_POST['id_proveedor'] == "0" || empty($_POST['codigo_productos'])) {
         ob_end_clean();
         header('Content-Type: application/json');
@@ -45,14 +44,7 @@ if (isset($_POST['action']) && ($_POST['action'] == 'insertar' || $_POST['action
                 VALUES ($v_nombre, $v_imp, $v_prov, $v_prod, $v_f_ini, $v_frec, '$usr_empresa_global', '$var_usr_login', '$var_ip_estacion', NOW())";
     } else {
         $sql = "UPDATE configuracion_otros_impuestos 
-                SET nombre_impuesto = $v_nombre, 
-                    impuesto = $v_imp,
-                    id_proveedor = $v_prov,
-                    codigo_productos = $v_prod,
-                    fecha_inicio_impuesto = $v_f_ini,
-                    frecuencia = $v_frec,
-                    usuario = '$var_usr_login',
-                    ip_estacion = '$var_ip_estacion'
+                SET nombre_impuesto = $v_nombre, impuesto = $v_imp, id_proveedor = $v_prov, codigo_productos = $v_prod, fecha_inicio_impuesto = $v_f_ini, frecuencia = $v_frec, usuario = '$var_usr_login', ip_estacion = '$var_ip_estacion'
                 WHERE id_otros_impuestos = $id AND empresa = '$usr_empresa_global'";
     }
     
@@ -70,39 +62,27 @@ if (isset($_POST['action']) && ($_POST['action'] == 'insertar' || $_POST['action
 if (isset($_GET['ajax_cargar_tabla'])) {
     while (ob_get_level() > 0) { ob_end_clean(); }
     
-    $sql_tabla = "SELECT 
-                    coi.id_otros_impuestos, 
-                    coi.nombre_impuesto, 
-                    coi.impuesto, 
-                    coi.id_proveedor, 
-                    coi.codigo_productos, 
-                    coi.fecha_inicio_impuesto,
-                    coi.frecuencia,
-                    pd.nombre_proveedor,
-                    ip.nombre_productos
+    $search = isset($_GET['search']) ? sc_sql_injection($_GET['search']) : "";
+    $where_f = " WHERE coi.empresa = '$usr_empresa_global' ";
+    
+    if (!empty($search) && $search != "''") {
+        $s = str_replace("'", "", $search);
+        $where_f .= " AND (coi.nombre_impuesto LIKE '%$s%' OR pd.nombre_proveedor LIKE '%$s%' OR ip.nombre_productos LIKE '%$s%') ";
+    }
+
+    $sql_tabla = "SELECT coi.id_otros_impuestos, coi.nombre_impuesto, coi.impuesto, coi.id_proveedor, coi.codigo_productos, coi.fecha_inicio_impuesto, coi.frecuencia, pd.nombre_proveedor, ip.nombre_productos
                   FROM configuracion_otros_impuestos coi
                   LEFT JOIN proveedores_datos pd ON coi.id_proveedor = pd.id_proveedor AND pd.empresa = coi.empresa
-                  LEFT JOIN inventario_productos ip ON coi.codigo_productos = ip.codigo_productos 
-                       AND ip.empresa = coi.empresa 
-                       AND ip.producto_matriz = 'SI'
-                  WHERE coi.empresa = '$usr_empresa_global'
-                  GROUP BY coi.id_otros_impuestos
-                  ORDER BY coi.id_otros_impuestos DESC";
+                  LEFT JOIN inventario_productos ip ON coi.codigo_productos = ip.codigo_productos AND ip.empresa = coi.empresa AND ip.producto_matriz = 'SI'
+                  $where_f GROUP BY coi.id_otros_impuestos ORDER BY coi.id_otros_impuestos DESC";
 
     sc_lookup(ds_tabla, $sql_tabla);
     $datos_tabla = array();
-    if (!empty({ds_tabla})) {
-        foreach ({ds_tabla} as $fila) {
+    // CORRECCIÓN: En Blank se usa la variable local $ds_tabla generada por sc_lookup
+    if (!empty($ds_tabla)) {
+        foreach ($ds_tabla as $fila) {
             $datos_tabla[] = array(
-                'id'            => $fila[0],
-                'nombre'        => $fila[1],
-                'tasa'          => $fila[2],
-                'id_prov'       => $fila[3],
-                'cod_prod'      => $fila[4],
-                'fecha_ini'     => $fila[5],
-                'frecuencia'    => $fila[6],
-                'nombre_prov'   => ($fila[7] ? $fila[7] : "N/A"),
-                'nombre_prod'   => ($fila[8] ? $fila[8] : "N/A")
+                'id' => $fila[0], 'nombre' => $fila[1], 'tasa' => $fila[2], 'id_prov' => $fila[3], 'cod_prod' => $fila[4], 'fecha_ini' => $fila[5], 'frecuencia' => $fila[6], 'nombre_prov' => ($fila[7] ? $fila[7] : "N/A"), 'nombre_prod' => ($fila[8] ? $fila[8] : "N/A")
             );
         }
     }
@@ -112,21 +92,15 @@ if (isset($_GET['ajax_cargar_tabla'])) {
 }
 
 // =========================================================================
-// 2. CONSULTAS PARA LLENAR SELECTORES
+// 2. CONSULTAS SELECTORES
 // =========================================================================
 sc_lookup(ds_prov, "SELECT id_proveedor, nombre_proveedor FROM proveedores_datos WHERE empresa = '$usr_empresa_global' ORDER BY nombre_proveedor ASC");
-
-sc_lookup(ds_prod, "SELECT ip.codigo_productos, ip.nombre_productos 
-	FROM inventario_productos ip 
-	LEFT JOIN inventario_tipo_productos itp ON itp.codigo_tipo_productos = ip.codigo_tiposerv_productos
-	WHERE ip.empresa = '$usr_empresa_global' AND ip.producto_matriz = 'SI' 
-	AND itp.empresa = '$usr_empresa_global'
-	AND itp.maneja_stock = 'SI'
-	GROUP BY ip.codigo_productos
-	ORDER BY ip.nombre_productos ASC");
+sc_lookup(ds_prod, "SELECT ip.codigo_productos, ip.nombre_productos FROM inventario_productos ip 
+    LEFT JOIN inventario_tipo_productos itp ON itp.codigo_tipo_productos = ip.codigo_tiposerv_productos
+    WHERE ip.empresa = '$usr_empresa_global' AND ip.producto_matriz = 'SI' AND itp.maneja_stock = 'SI' GROUP BY ip.codigo_productos ORDER BY ip.nombre_productos ASC");
 
 // =========================================================================
-// 3. VISTA HTML & CSS
+// 3. VISTA
 // =========================================================================
 echo '
 <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
@@ -150,9 +124,11 @@ echo '
     <div class="table-container">
         <div class="header-panel d-flex justify-content-between align-items-center">
             <h4 class="m-0 text-dark font-weight-bold">⚙ Otros Impuestos</h4>
-            <button class="btn btn-primary" onclick="abrirModalNuevo()">+ Nuevo Impuesto</button>
+            <div class="d-flex align-items-center">
+                <input type="text" id="quick_search" class="form-control form-control-sm mr-2" style="width: 250px;" placeholder="Buscar impuesto, proveedor o producto...">
+                <button class="btn btn-primary" onclick="abrirModalNuevo()">+ Nuevo Impuesto</button>
+            </div>
         </div>
-        
         <div class="table-responsive p-4">
             <table class="table table-hover table-bordered">
                 <thead class="table-header-custom text-center">
@@ -174,7 +150,7 @@ echo '
     </div>
 </div>
 
-<!-- MODAL CRUD -->
+<!-- MODAL -->
 <div class="modal fade" id="modalImpuesto" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
@@ -184,47 +160,38 @@ echo '
             </div>
             <div class="modal-body">
                 <input type="hidden" id="imp_id" value="">
-                
-                <div class="row">
-                    <div class="col-md-12 form-group">
-                        <label class="font-weight-bold">Nombre del Impuesto *</label>
-                        <span class="info-icon" data-toggle="tooltip" title="Nombre oficial del tributo según el ente regulador (ej: ISLR, CONATEL RF-..., FIDETEL y otros).">(?)</span>
-                        <input type="text" id="imp_nombre" class="form-control" placeholder="Ej: CONATEL RF-006">
-                    </div>
+                <div class="form-group">
+                    <label class="font-weight-bold">Nombre del Impuesto *</label>
+                    <span class="info-icon" data-toggle="tooltip" title="Nombre oficial del tributo según el ente regulador (ej: ISLR, CONATEL, FIDETEL).">(?)</span>
+                    <input type="text" id="imp_nombre" class="form-control" placeholder="Ej: CONATEL RF-006">
                 </div>
-
                 <div class="row">
                     <div class="col-md-6 form-group">
                         <label class="font-weight-bold">Proveedor *</label>
-                        <span class="info-icon" data-toggle="tooltip" title="Seleccione el proveedor asociado a este impuesto, contra el cual se realizara el gasto">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Proveedor asociado a este impuesto para el registro del gasto.">(?)</span>
                         <select id="imp_id_proveedor" class="form-control">
                             <option value="0">-- Seleccione Proveedor --</option>';
-                            if (!empty({ds_prov})) {
-                                foreach({ds_prov} as $p) { echo "<option value='".$p[0]."'>".$p[1]."</option>"; }
-                            }
+                            if(!empty({ds_prov})){ foreach({ds_prov} as $p){ echo "<option value='".$p[0]."'>".$p[1]."</option>"; } }
 echo '                  </select>
                     </div>
                     <div class="col-md-6 form-group">
                         <label class="font-weight-bold">Producto *</label>
-                        <span class="info-icon" data-toggle="tooltip" title="Seleccione el producto de inventario, el cual estara vinculado al auxiliar contable">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Proveedor asociado a este impuesto para el registro del gasto.">(?)</span>
                         <select id="imp_codigo_productos" class="form-control">
                             <option value="">-- Seleccione Producto --</option>';
-                            if (!empty({ds_prod})) {
-                                foreach({ds_prod} as $pr) { echo "<option value='".$pr[0]."'>".$pr[1]."</option>"; }
-                            }
+                            if(!empty({ds_prod})){ foreach({ds_prod} as $pr){ echo "<option value='".$pr[0]."'>".$pr[1]."</option>"; } }
 echo '                  </select>
                     </div>
                 </div>
-
                 <div class="row">
                     <div class="col-md-6 form-group">
-                        <label class="font-weight-bold">Fecha Inicio Impuesto *</label>
-                        <span class="info-icon" data-toggle="tooltip" title="Fecha exacta en la que empieza la vigencia del impuesto.">(?)</span>
+                        <label class="font-weight-bold">Fecha Inicio *</label>
+				        <span class="info-icon" data-toggle="tooltip" title="Fecha exacta en la que empieza la vigencia del impuesto.">(?)</span>
                         <input type="date" id="imp_fecha_inicio" class="form-control">
                     </div>
                     <div class="col-md-6 form-group">
-                        <label class="font-weight-bold">Frecuencia de Pago *</label>
-                        <span class="info-icon" data-toggle="tooltip" title="Indica cada cuánto tiempo se genera la obligación tributaria, Ej: Quincenal, Mensual. Trimestral, Anual">(?)</span>
+                        <label class="font-weight-bold">Frecuencia *</label>
+		                <span class="info-icon" data-toggle="tooltip" title="Indica cada cuánto tiempo se genera la obligación tributaria.">(?)</span>				
                         <select id="imp_frecuencia" class="form-control">
                             <option value="">-- Seleccione Frecuencia --</option>
                             <option value="Quincenal">Quincenal</option>
@@ -234,65 +201,63 @@ echo '                  </select>
                         </select>
                     </div>
                 </div>
-
-                <div class="row">
-                    <div class="col-md-6 form-group">
-                        <label class="font-weight-bold">Impuesto (%) *</label>
-                        <span class="info-icon" data-toggle="tooltip" title="Ingrese el valor porcentual (ej: 1.00). No incluya el símbolo %.">(?)</span>
-                        <input type="number" step="0.01" id="imp_tasa" class="form-control" placeholder="0.00">
-                    </div>
+                <div class="form-group">
+                    <label class="font-weight-bold">Impuesto (%) *</label>
+					<span class="info-icon" data-toggle="tooltip" title="Ingrese el valor porcentual (ej: 1.00). No incluya el símbolo %.">(?)</span>
+                    <input type="number" step="0.01" id="imp_tasa" class="form-control" placeholder="0.00">
                 </div>
             </div>
             <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-success" onclick="guardarRegistro()">Guardar Impuesto</button>
+                <button type="button" class="btn btn-primary" onclick="guardarRegistro()">Guardar Impuesto</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-function getUrlLimpia() { return window.location.protocol + "//" + window.location.host + window.location.pathname; }
+function getUrlLimpia() { return window.location.href.split("?")[0]; }
 
 function cargarTabla() {
     let tbody = document.getElementById("tbody_impuestos");
-    fetch(getUrlLimpia() + "?ajax_cargar_tabla=1")
+    let search_val = document.getElementById("quick_search") ? document.getElementById("quick_search").value : "";
+
+    fetch(getUrlLimpia() + "?ajax_cargar_tabla=1&search=" + encodeURIComponent(search_val))
     .then(res => res.json())
     .then(data => {
         tbody.innerHTML = "";
         if(data.length === 0) {
-            tbody.innerHTML = "<tr><td colspan=\'7\' class=\'text-center\'>No hay impuestos configurados</td></tr>";
+            tbody.innerHTML = "<tr><td colspan=\'7\' class=\'text-center\'>No hay resultados</td></tr>";
             return;
         }
-		data.forEach(item => {
-            let itemSafe = JSON.stringify(item).replace(/"/g, \'&quot;\');
-            
-            // Lógica de colores por frecuencia (Uso de comillas dobles para evitar error PHP)
+        let html = "";
+        data.forEach(item => {
+            let itemSafe = JSON.stringify(item).replace(/"/g, "&quot;");
             let colorClase = "badge-secondary"; 
             if (item.frecuencia === "Quincenal")  colorClase = "badge-primary"; 
             if (item.frecuencia === "Mensual")    colorClase = "badge-success"; 
             if (item.frecuencia === "Trimestral") colorClase = "badge-warning"; 
             if (item.frecuencia === "Anual")      colorClase = "badge-danger"; 
 
-            tbody.innerHTML += `<tr>
+            html += `<tr>
                 <td class="text-left font-weight-bold">${item.nombre}</td>
                 <td class="text-left"><small>${item.nombre_prov}</small></td>
                 <td class="text-left"><small>${item.nombre_prod}</small></td>
                 <td class="text-left">${item.fecha_ini || "---"}</td>
                 <td class="text-center"><span class="badge ${colorClase} badge-frec">${item.frecuencia}</span></td>
                 <td class="text-right font-weight-bold text-primary">${parseFloat(item.tasa).toFixed(2)}%</td>
-				<td class="text-center">
-					<button class="btn btn-sm btn-outline-primary mr-1" title="Editar" onclick="prepararEdicion(${itemSafe})">
-						<i class="fas fa-pencil-alt"></i>
-					</button>
-					<button class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="eliminarRegistro(${item.id})">
-						<i class="fas fa-trash"></i>
-					</button>
-				</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-primary mr-1" onclick="prepararEdicion(${itemSafe})"><i class="fas fa-pencil-alt"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="eliminarRegistro(${item.id})"><i class="fas fa-trash"></i></button>
+                </td>
             </tr>`;
         });
-        // Reinicializar tooltips para nuevos elementos
-        $(\'[data-toggle="tooltip"]\').tooltip();
+        tbody.innerHTML = html;
+        
+        // CORRECCIÓN PARA SCRIPTCASE: Rompemos la cadena para evitar que detecte el corchete como variable global
+        if (window.jQuery && $.fn.tooltip) {
+            $("[data" + "-toggle=\'tooltip\']").tooltip();
+        }
     });
 }
 
@@ -323,51 +288,42 @@ function prepararEdicion(item) {
 function guardarRegistro() {
     let id     = document.getElementById("imp_id").value;
     let nom    = document.getElementById("imp_nombre").value;
-    let tasa   = document.getElementById("imp_tasa").value;
-    let prov   = document.getElementById("imp_id_proveedor").value;
-    let prod   = document.getElementById("imp_codigo_productos").value;
-    let frec   = document.getElementById("imp_frecuencia").value;
-    let fecha  = document.getElementById("imp_fecha_inicio").value;
-
-    // Validación de todos los campos obligatorios
-    if (!nom || tasa === "" || prov === "0" || !prod || !frec || !fecha) {
-        return alert("Error: Todos los campos marcados con (*) son obligatorios.");
-    }
-
     let formData = new FormData();
     formData.append("action", id ? "actualizar" : "insertar");
     if (id) formData.append("id", id);
     formData.append("nombre_impuesto", nom);
-    formData.append("impuesto", tasa);
-    formData.append("id_proveedor", prov);
-    formData.append("codigo_productos", prod);
-    formData.append("frecuencia", frec);
-    formData.append("fecha_inicio", fecha);
+    formData.append("impuesto", document.getElementById("imp_tasa").value);
+    formData.append("id_proveedor", document.getElementById("imp_id_proveedor").value);
+    formData.append("codigo_productos", document.getElementById("imp_codigo_productos").value);
+    formData.append("frecuencia", document.getElementById("imp_frecuencia").value);
+    formData.append("fecha_inicio", document.getElementById("imp_fecha_inicio").value);
 
     fetch(getUrlLimpia(), { method: "POST", body: formData })
     .then(res => res.json())
     .then(data => {
-        if(data.status === "success") {
-            $("#modalImpuesto").modal("hide");
-            cargarTabla();
-        } else {
-            alert("Error del Servidor: " + data.message);
-        }
-    }).catch(err => alert("Error en la petición: " + err));
+        if(data.status === "success") { $("#modalImpuesto").modal("hide"); cargarTabla(); }
+        else { alert("Error: " + data.message); }
+    });
 }
 
 function eliminarRegistro(id) {
-    if(!confirm("¿Está seguro de eliminar este registro permanentemente?")) return;
+    if(!confirm("¿Eliminar permanentemente?")) return;
     let formData = new FormData();
     formData.append("action", "eliminar");
     formData.append("id", id);
     fetch(getUrlLimpia(), { method: "POST", body: formData }).then(() => cargarTabla());
 }
 
-// Carga inicial e inicialización de tooltips
 document.addEventListener("DOMContentLoaded", function() {
     cargarTabla();
-    $(\'[data-toggle="tooltip"]\').tooltip();
+    if (window.jQuery && $.fn.tooltip) {
+        $("[data" + "-toggle=\'tooltip\']").tooltip();
+    }
+    let searchTimer;
+    document.getElementById("quick_search").addEventListener("input", function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { cargarTabla(); }, 300);
+    });
 });
 </script>
 ';
