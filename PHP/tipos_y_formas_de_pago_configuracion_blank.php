@@ -8,7 +8,19 @@ $var_wiki	  		= [wiki];
 
 $duplicate_error_msg = ""; 
 
-// --- LÓGICA PARA ELIMINAR TIPO DE PAGO CON VALIDACIÓN ---
+
+// --- ACCIÓN: Validar Duplicado de Código (AJAX) ---
+if (isset($_GET['action']) && $_GET['action'] == 'check_duplicate_codigo') {
+    while (ob_get_level()) ob_end_clean();
+    $cod_check = sc_sql_injection($_GET['codigo']);
+    sc_lookup(ds_dup, "SELECT COUNT(*) FROM banco_tipo_pago 
+                       WHERE codigo_tipo_pago = $cod_check 
+                       AND empresa = '$usr_empresa' 
+                       AND sucursal = '$usr_sucursal'");
+    echo (isset($ds_dup[0][0]) && $ds_dup[0][0] > 0) ? 'existe' : 'ok';
+    exit;
+}
+
 // --- LÓGICA PARA ELIMINAR TIPO DE PAGO CON VALIDACIÓN ---
 if (isset($_GET['action']) && $_GET['action'] == 'delete_tipo') {
     $id_del = sc_sql_injection($_GET['id_tipo']);
@@ -45,8 +57,21 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete_tipo') {
         }
     }
 }
+/*NUEVO*/
 
+// --- ACCIÓN: Validar Duplicado de Código de Forma (AJAX) ---
+if (isset($_GET['action']) && $_GET['action'] == 'check_duplicate_forma') {
+    while (ob_get_level()) ob_end_clean();
+    $cod_f_check = sc_sql_injection($_GET['codigo_forma']);
+    sc_lookup(ds_dup_f, "SELECT COUNT(*) FROM banco_formas_pago 
+                       WHERE codigo_formas_pago = $cod_f_check 
+                       AND empresa = '$usr_empresa' 
+                       AND sucursal = '$usr_sucursal'");
+    echo (isset($ds_dup_f[0][0]) && $ds_dup_f[0][0] > 0) ? 'existe' : 'ok';
+    exit;
+}
 
+/*NUEVO*/
 // --- LÓGICA PARA ELIMINAR FORMA DE PAGO CON VALIDACIÓN CRUZADA ---
 if (isset($_GET['action']) && $_GET['action'] == 'delete_forma') {
     $id_f_del = sc_sql_injection($_GET['id_forma']);
@@ -172,7 +197,9 @@ if (isset($_GET['get_formas_pago'])) {
                     tipo_documento,              /* 14 */
                     cuenta_padre,                /* 15 */
                     cuenta_hijo,                 /* 16 */
-                    codigo_productos             /* 17 */
+                    codigo_productos,            /* 17 */
+                    visible_icarobot_ia,         /* 18 */
+                    visible_aliado               /* 19 */
                    FROM banco_formas_pago 
                    WHERE codigo_tipo_pago = $codigo_tipo AND empresa = '$usr_empresa' AND sucursal = '$usr_sucursal'";
     sc_select(ds_f, $sql_formas);
@@ -183,7 +210,9 @@ if (isset($_GET['get_formas_pago'])) {
     if ($ds_f && !$ds_f->EOF) {
         while (!$ds_f->EOF) {
             $clean_f = [];
-            for($i=0; $i<18; $i++){ $clean_f[] = $ds_f->fields[$i]; }
+            for($i=0; $i<20; $i++){
+				$clean_f[] = $ds_f->fields[$i]; 
+			}
             $json_f = json_encode($clean_f);
 
             $sub_table .= "<tr>
@@ -206,12 +235,14 @@ if (isset($_GET['get_formas_pago'])) {
 
 // 1. PROCESAMIENTO TIPO DE PAGO (Guardado)
 if (isset($_POST['btn_save_tipo'])) {
-	// --- NUEVA VALIDACIÓN DE LONGITUD ---
-    if (strlen($_POST['f_codigo_formas_pago']) > 10) {
+	$v_cod_raw = $_POST['t_codigo'];
+    $v_nom_raw = $_POST['t_nombre'];
+
+    if (empty($v_cod_raw) || empty($v_nom_raw) || strlen($v_cod_raw) > 10) {
+        $msg = (strlen($v_cod_raw) > 10) ? "El código no puede exceder 10 caracteres." : "Todos los campos con (*) son obligatorios.";
         echo "<body><script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
         <script>
-            Swal.fire('Error', 'El Código de Forma no puede exceder de 10 caracteres.', 'error')
-            .then(() => { window.location.href = '$current_url'; });
+            Swal.fire({ icon: 'error', title: 'Error', text: '$msg' }).then(() => { window.history.back(); });
         </script></body>";
         exit;
     }
@@ -230,6 +261,29 @@ if (isset($_POST['btn_save_tipo'])) {
 	$v_ret = isset($_POST['t_retencion']) ? 1 : 0;
 
     if (empty($id_t)) {
+		
+		// --- NUEVA VALIDACIÓN DE DUPLICADOS PARA INSERCIÓN ---
+        sc_lookup(ds_dup, "SELECT COUNT(*) FROM banco_tipo_pago 
+                           WHERE codigo_tipo_pago = $cod 
+                           AND empresa = '$usr_empresa' 
+                           AND sucursal = '$usr_sucursal'");
+
+        if (isset($ds_dup[0][0]) && $ds_dup[0][0] > 0) {
+            // ERROR: Código duplicado detectado
+            while (ob_get_level()) ob_end_clean(); // Limpiar buffer
+            echo "<body><script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
+            <script>
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Código Duplicado',
+                    text: 'El código de pago ' + $cod + ' ya se encuentra registrado para esta empresa y sucursal.',
+                    confirmButtonColor: '#3085d6'
+                }).then(() => { window.history.back(); });
+            </script></body>";
+            exit;
+        }
+        // --- FIN VALIDACIÓN ---
+			
         // INSERTAR NUEVO TIPO
         $sql = "INSERT INTO banco_tipo_pago (codigo_tipo_pago, nombre_tipo_pago, estatus, empresa, sucursal, visible_cliente, visible_soporte, visible_aliado, visible_adm, retencion, usuario,ip_estacion,fecha) 
                 VALUES ($cod, $nom, $est, '$usr_empresa', '$usr_sucursal', $v_cli, $v_sop, $v_ali, $v_adm, $v_ret,'$usr_login','$var_ip_estacion',NOW())";
@@ -245,45 +299,97 @@ if (isset($_POST['btn_save_tipo'])) {
     exit;
 }
 
-
-// 2. PROCESAMIENTO CRUD (Guardado)
+// 2. PROCESAMIENTO CRUD (Guardado de Formas de Pago)
 if (isset($_POST['btn_save_forma'])) {
+    
+    // --- INICIO DE VALIDACIONES PROFESIONALES ---
+    $raw_f_cod = $_POST['f_codigo_formas_pago'];
+    $raw_f_nom = $_POST['f_nombre_formas_pago'];
+    $raw_f_ban = $_POST['f_codigo_banco'];
+    $raw_f_mon = $_POST['f_codigo_moneda'];
+
+    $error_msg = "";
+
+    // 1. Validar campos obligatorios
+    if (empty($raw_f_cod) || empty($raw_f_nom) || empty($raw_f_ban) || empty($raw_f_mon)) {
+        $error_msg = "Por favor, complete todos los campos marcados con (*) antes de guardar.";
+    } 
+    // 2. Validar longitud del código (Máximo 10)
+    elseif (strlen($raw_f_cod) > 10) {
+        $error_msg = "El Código de Forma ('$raw_f_cod') es demasiado largo. El límite es de 10 caracteres.";
+    }
+
+    if (!empty($error_msg)) {
+        // Limpiamos cualquier salida previa para que el SweetAlert cargue limpio
+        while (ob_get_level()) ob_end_clean();
+        echo "<body>
+        <script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
+        <script>
+            Swal.fire({
+                icon: 'warning',
+                title: 'Validación de Datos',
+                text: '$error_msg',
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'Regresar al formulario'
+            }).then(() => { window.history.back(); });
+        </script></body>";
+        exit;
+    }
+    // --- FIN DE VALIDACIONES ---
+
+    // Proseguimos con la sanitización de datos (Lógica original)
     $id_f = $_POST['f_id_pk'];
     $c_tp = sc_sql_injection($_POST['f_codigo_tipo_pago']);
-    $c_fp = sc_sql_injection($_POST['f_codigo_formas_pago']); // codigo_formas_pago
-    $n_fp = sc_sql_injection($_POST['f_nombre_formas_pago']);
+    $c_fp = sc_sql_injection($raw_f_cod); 
+    $n_fp = sc_sql_injection($raw_f_nom);
     
-    // Captura estricta para evitar errores de sintaxis
     $m_cv = sc_sql_injection($_POST['f_moneda_convertible']);
     $p_rt = !empty($_POST['f_porc_reten']) ? $_POST['f_porc_reten'] : 0;
-    $c_ba = sc_sql_injection($_POST['f_codigo_banco']);
-    $c_mo = sc_sql_injection($_POST['f_codigo_moneda']);
+    $c_ba = sc_sql_injection($raw_f_ban);
+    $c_mo = sc_sql_injection($raw_f_mon);
     $r_re = sc_sql_injection($_POST['f_requiere_referencia']);
     $m_cl = sc_sql_injection($_POST['f_mensaje_cliente']);
     $comi = !empty($_POST['f_comision']) ? $_POST['f_comision'] : 0;
     
-    $v_cl = isset($_POST['f_visible_cliente'])?1:0;
-    $v_so = isset($_POST['f_visible_soporte'])?1:0;
-    $f_au = isset($_POST['f_fact_auto'])?1:0;
-    $g_cb = isset($_POST['f_generar_comision_bancaria'])?1:0;
+    $v_cl = isset($_POST['f_visible_cliente']) ? 1 : 0;
+    $v_so = isset($_POST['f_visible_soporte']) ? 1 : 0;
+    $f_au = isset($_POST['f_fact_auto']) ? 1 : 0;
+    $g_cb = isset($_POST['f_generar_comision_bancaria']) ? 1 : 0;
+	$v_ia = isset($_POST['f_visible_icarobot_ia']) ? 1 : 0; // Agregado
+    $v_al = isset($_POST['f_visible_aliado']) ? 1 : 0;  // Agregado	
 	
-	$c_prod = sc_sql_injection($_POST['f_codigo_productos']); // Captura el nuevo selector
+	
+    $c_prod = sc_sql_injection($_POST['f_codigo_productos']); 
 
-	// Modifica estas líneas para que no busquen en el $_POST
-	$t_do = "''"; // Valor vacío para la base de datos
-	$c_pa = "''"; // Valor vacío para la base de datos
-	$c_hi = "''"; // Valor vacío para la base de datos
-	
-	if(empty($id_f)) {
-		// Agrega 'codigo_productos' al final de las columnas y el valor $c_prod al final de VALUES
-		$sql = "INSERT INTO banco_formas_pago (codigo_formas_pago, nombre_formas_pago, moneda_convertible, porc_reten, codigo_tipo_pago, codigo_banco, codigo_moneda, requiere_referencia, usuario, fecha, empresa, sucursal, ip_usuario, visible_cliente, mensaje_cliente, comision, visible_soporte, fact_auto, generar_comision_bancaria, codigo_productos) 
-					VALUES ($c_fp, $n_fp, $m_cv, $p_rt, $c_tp, $c_ba, $c_mo, $r_re, '$usr_login', '".date('Y-m-d')."', '$usr_empresa', '$usr_sucursal', '".$_SERVER['REMOTE_ADDR']."', $v_cl, $m_cl, $comi, $v_so, $f_au, $g_cb, $c_prod)";
-	} else {
-		// Agrega 'codigo_productos=$c_prod' al final del SET
-		$sql = "UPDATE banco_formas_pago SET codigo_formas_pago=$c_fp, nombre_formas_pago=$n_fp, moneda_convertible=$m_cv, porc_reten=$p_rt, codigo_banco=$c_ba, codigo_moneda=$c_mo, requiere_referencia=$r_re, mensaje_cliente=$m_cl, comision=$comi, visible_cliente=$v_cl, visible_soporte=$v_so, fact_auto=$f_au, generar_comision_bancaria=$g_cb, codigo_productos=$c_prod WHERE id_banco_formas_pago=".sc_sql_injection($id_f);
-		}
+    if(empty($id_f)) {
+        // INSERTAR NUEVA FORMA (Columnas duplicadas eliminadas)
+        $sql = "INSERT INTO banco_formas_pago (codigo_formas_pago, nombre_formas_pago, moneda_convertible, porc_reten, codigo_tipo_pago, codigo_banco, codigo_moneda, requiere_referencia, usuario, fecha, empresa, sucursal, ip_usuario, mensaje_cliente, comision, fact_auto, generar_comision_bancaria, codigo_productos, cuenta_padre, cuenta_hijo, visible_cliente, visible_soporte, visible_aliado, visible_icarobot_ia) 
+                VALUES ($c_fp, $n_fp, $m_cv, $p_rt, $c_tp, $c_ba, $c_mo, $r_re, '$usr_login', '".date('Y-m-d')."', '$usr_empresa', '$usr_sucursal', '".$_SERVER['REMOTE_ADDR']."', $m_cl, $comi, $f_au, $g_cb, $c_prod, ' ',' ', $v_cl, $v_so, $v_al, $v_ia)";
+    } else {
+        // ACTUALIZAR FORMA EXISTENTE (Asignaciones duplicadas eliminadas)
+        $sql = "UPDATE banco_formas_pago SET 
+                codigo_formas_pago          =   $c_fp, 
+                nombre_formas_pago          =   $n_fp, 
+                moneda_convertible          =   $m_cv, 
+                porc_reten                  =   $p_rt, 
+                codigo_banco                =   $c_ba, 
+                codigo_moneda               =   $c_mo, 
+                requiere_referencia         =   $r_re, 
+                mensaje_cliente             =   $m_cl, 
+                comision                    =   $comi, 
+                fact_auto                   =   $f_au, 
+                generar_comision_bancaria   =   $g_cb, 
+                codigo_productos            =   $c_prod,
+                visible_cliente             =   $v_cl, 
+                visible_soporte             =   $v_so, 
+                visible_aliado              =   $v_al, 
+                visible_icarobot_ia         =   $v_ia
+                WHERE id_banco_formas_pago=".sc_sql_injection($id_f);
+    }
+
     sc_exec_sql($sql);
-    header("Location: ".$current_url); exit;
+    header("Location: ".$current_url); 
+    exit;
 }
 // (Resto de la lógica btn_save para Tipo Pago se mantiene igual)
 
@@ -334,6 +440,13 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: #5dade2; }
         input:checked + .slider:before { transform: translateX(22px); content: '✓'; font-size: 10px; color: #5dade2; text-align: center; line-height: 18px; }
+		.info-icon { 
+			color: #17a2b8; 
+			cursor: help; 
+			margin-left: 5px; 
+			font-size: 0.8rem; 
+			vertical-align: middle;
+		}		
     </style>
 </head>
 <body>
@@ -380,10 +493,9 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 <div class="modal fade" id="modalTipoPago" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <form id="form_tipo" method="POST">
+            <form id="form_tipo" method="POST" novalidate>
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="lblTitleTipo">Gestionar Tipo de Pago</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+                    <h5 class="modal-title" id="lblTitleTipo">Gestionar Tipo de Pago</h5>				
                 </div>
                 <div class="modal-body">
                     <input type="hidden" name="t_id_pk" id="t_id_pk">
@@ -408,7 +520,9 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
                     <hr>
                    
 					<hr>
-					<label class="small font-weight-bold">CONFIGURACIÓN DE VISIBILIDAD</label>
+					<label class="small font-weight-bold">
+						CONFIGURACIÓN DE VISIBILIDAD</label>
+						<span class="info-icon" data-toggle="tooltip" title="Este bloque activamos la visibilidad en los diferentes portales">(?)</span>
 					<div class="row text-center">
 						<div class="col-3">
 							<label class="small d-block">Clientes</label>
@@ -432,21 +546,21 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 							</label>
 						</div>
 						<div class="col-3">
-							<label class="small d-block">Administracion</label>
+							<label class="small d-block">Administración</label>
 							<label class="ios-switch">
 								<input type="checkbox" name="t_v_adm" id="t_v_adm">
 								<span class="slider"></span>
 							</label>
 						</div>
-						 <div class="col-3">
-							<label class="small d-block">Retención</label>
+						<div class="col-4">
+							<label class="small d-block">Retención (Portal Clientes)</label>
 							<label class="ios-switch"><input type="checkbox" name="t_retencion" id="t_retencion"><span class="slider"></span></label>
-						</div>						
+						</div>							
 					</div>					
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cerrar</button>
-                    <button type="submit" name="btn_save_tipo" class="btn btn-primary btn-sm">Guardar</button>
+					<button type="button" onclick="validarGuardarTipo()" class="btn btn-primary btn-sm">Guardar</button>
                 </div>
             </form>
         </div>
@@ -458,60 +572,108 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 <div class="modal fade" id="modalFormaPago" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
-            <form id="form_forma" method="POST">
-                <div class="modal-header bg-dark text-white"><h5 class="modal-title" id="lblTitleForma">Gestionar Forma</h5><button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button></div>
+            <form id="form_forma" method="POST" novalidate>
+                <div class="modal-header bg-dark text-white"><h5 class="modal-title" id="lblTitleForma">Gestionar Forma</h5>
+				</div>
                 <div class="modal-body">
                     <input type="hidden" name="f_id_pk" id="f_id_pk">
                     <input type="hidden" name="f_codigo_tipo_pago" id="f_codigo_tipo_pago">
                     
-                    <div class="row">
+                    <div class="row"><!-- LINEA 1 -->
                         <div class="col-md-3 form-group">
 							<label class="small font-weight-bold">CÓDIGO FORMA *</label>
 							<span class="info-icon" data-toggle="tooltip" title="Código abreviado de la forma de pago (Ej: ZELLE, P_MOVIL).">(?)</span>
-							<input type="text" name="f_codigo_formas_pago" id="f_codigo_formas_pago" class="form-control" maxlength="10" required></div>                        <div class="col-md-6 form-group">
-						<label class="small font-weight-bold">NOMBRE FORMA *</label>
-						<span class="info-icon" data-toggle="tooltip" title="Nombre completo que aparecerá en los puntos de venta o facturación.">(?)</span>
-						<input type="text" name="f_nombre_formas_pago" id="f_nombre_formas_pago" class="form-control" required></div>
-                        <div class="col-md-3 form-group">
-							<label class="small font-weight-bold">MONEDA CONV. *</label>
-							<span class="info-icon" data-toggle="tooltip" title="¿Esta forma de pago permite conversión de divisas automáticamente?">(?)</span>
-							<select name="f_moneda_convertible" id="f_moneda_convertible" class="form-control">
-								<option value="SI">SI</option><option value="NO">NO</option></select></div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 form-group">
+							<input type="text" name="f_codigo_formas_pago" id="f_codigo_formas_pago" class="form-control" maxlength="10" required>
+						</div>                        
+						<div class="col-md-4 form-group">
+							<label class="small font-weight-bold">NOMBRE FORMA *</label>
+							<span class="info-icon" data-toggle="tooltip" title="Nombre completo que aparecerá en los puntos de venta o facturación.">(?)</span>
+							<input type="text" name="f_nombre_formas_pago" id="f_nombre_formas_pago" class="form-control" required>
+						</div>
+												
+						  <div class="col-md-5 form-group">
 							<label class="small font-weight-bold">BANCO *</label>
 							<span class="info-icon" data-toggle="tooltip" title="Seleccione el banco donde se recibe el dinero de esta forma de pago.">(?)</span>
-							<select name="f_codigo_banco" id="f_codigo_banco" class="form-control"><option value="">-- Seleccione --</option><?php foreach($ds_bancos as $b) echo "<option value='".$b[0]."'>".$b[1]."</option>"; ?></select></div>
+							<select name="f_codigo_banco" id="f_codigo_banco" class="form-control"><option value="">-- Seleccione --</option><?php foreach($ds_bancos as $b) echo "<option value='".$b[0]."'>".$b[1]."</option>"; ?></select>
+						</div>
+                    </div> <!-- LINEA 1 FIN -->
+
+                    <div class="row"> <!-- LINEA 2  -->                     
                         <div class="col-md-4 form-group">
 							<label class="small font-weight-bold">MONEDA *</label>
 							<span class="info-icon" data-toggle="tooltip" title="Moneda en la que se registra el ingreso (Bs, USD, etc).">(?)</span>							
-							<select name="f_codigo_moneda" id="f_codigo_moneda" class="form-control"><option value="">-- Seleccione --</option><?php foreach($ds_monedas as $m) echo "<option value='".$m[0]."'>".$m[1]."</option>"; ?></select></div>
+							<select name="f_codigo_moneda" id="f_codigo_moneda" class="form-control"><option value="">-- Seleccione --</option><?php foreach($ds_monedas as $m) echo "<option value='".$m[0]."'>".$m[1]."</option>"; ?></select>
+						</div>				
+						<div class="col-md-4 form-group">
+							<label class="small font-weight-bold">MONEDA CONV. *</label>
+							<span class="info-icon" data-toggle="tooltip" title="¿Esta forma de pago permite conversión de divisas automáticamente?">(?)</span>
+							<select name="f_moneda_convertible" id="f_moneda_convertible" class="form-control">
+								<option value="SI">SI</option><option value="NO">NO</option></select>
+						</div>			
+										
                         <div class="col-md-4 form-group">
 							<label class="small font-weight-bold">REQUIERE REF. *</label>
 							 <span class="info-icon" data-toggle="tooltip" title="Indica si el sistema debe pedir obligatoriamente un número de referencia/comprobante.">(?)</span>
-							<select name="f_requiere_referencia" id="f_requiere_referencia" class="form-control"><option value="SI">SI</option><option value="NO">NO</option></select></div>
-                    </div>
+							<select name="f_requiere_referencia" id="f_requiere_referencia" class="form-control"><option value="SI">SI</option><option value="NO">NO</option></select>
+						</div>
+                    </div> <!-- LINEA 2 FIN -->    
 
-                    <div class="row">
-                        <div class="col-md-3 form-group">
+                    <div class="row"> <!-- LINEA 3  -->    						
+						<div class="col-md-3 form-group text-center">
+							<label class="small font-weight-bold" style="white-space: nowrap;">Genera Comisión Bancaria Cliente</label>
+							<br>
+							<label class="ios-switch">
+								<input type="checkbox" name="f_generar_comision_bancaria" id="f_generar_comision_bancaria">
+								<span class="slider"></span>
+							</label>
+    					</div>																
+                        <div class="col-md-2 form-group">
 							<label class="small font-weight-bold">COMISIÓN</label>
 							 <span class="info-icon" data-toggle="tooltip" title="Porcentaje de comisión bancaria o de plataforma aplicado por cada transacción realizada.">(?)</span>
-							<input type="number" step="0.01" name="f_comision" id="f_comision" class="form-control"></div>
-                        <div class="col-md-3 form-group">
+							<input type="number" step="0.01" name="f_comision" id="f_comision" class="form-control">
+						</div>
+                        <div class="col-md-2 form-group">
 							<label class="small font-weight-bold">% RETENCIÓN</label>
 							<span class="info-icon" data-toggle="tooltip" title="Porcentaje de retención de impuestos (IVA/ISLR) que se aplica automáticamente a esta forma de pago.">(?)</span>
-							<input type="number" step="0.01" name="f_porc_reten" id="f_porc_reten" class="form-control"></div>
-                        <div class="col-md-6 form-group">
+							<input type="number" step="0.01" name="f_porc_reten" id="f_porc_reten" class="form-control">
+						</div>
+                        <div class="col-md-5 form-group">
 							<label class="small font-weight-bold">MENSAJE CLIENTE</label>	
 							<span class="info-icon" data-toggle="tooltip" title="Instrucciones o notas aclaratorias que el cliente verá en su pantalla al momento de seleccionar este método de pago.">(?)</span>
 							<input type="text" name="f_mensaje_cliente" id="f_mensaje_cliente" class="form-control">
 						</div>
-                    </div>
-                    <hr>
-					<div class="row">
-						<!-- Se eliminaron TIPO DOC, CTA PADRE y CTA HIJO -->
+                    </div> <!-- LINEA 3 FIN-->    
+					
+					
+					<!-- LINEA 4: CONFIGURACIÓN DE VISIBILIDAD -->
+					<div class="row border-top mt-3 pt-2"> 
+						<div class="col-md-12">								
+							<label class="font-weight-bold text-secondary">CONFIGURACIÓN DE VISIBILIDAD</label>
+							<span class="info-icon" data-toggle="tooltip" title="Active los portales donde será visible esta forma de pago.">(?)</span>
+
+							<div class="row mt-2">
+								<div class="col-md-3 text-center">
+									<label class="small d-block font-weight-bold">Clientes</label>
+									<label class="ios-switch"><input type="checkbox" name="f_visible_cliente" id="f_visible_cliente"><span class="slider"></span></label>
+								</div>
+								<div class="col-md-3 text-center">
+									<label class="small d-block font-weight-bold">Soporte</label>
+									<label class="ios-switch"><input type="checkbox" name="f_visible_soporte" id="f_visible_soporte"><span class="slider"></span></label>
+								</div>
+								<div class="col-md-3 text-center">
+									<label class="small d-block font-weight-bold">Aliados</label>
+									<label class="ios-switch"><input type="checkbox" name="f_visible_aliado" id="f_visible_aliado"><span class="slider"></span></label>
+								</div>
+								<div class="col-md-3 text-center">
+									<label class="small d-block font-weight-bold">IcaroBot IA</label>
+									<label class="ios-switch"><input type="checkbox" name="f_visible_icarobot_ia" id="f_visible_icarobot_ia"><span class="slider"></span></label>
+								</div>
+							</div>	  	
+						</div>
+					</div>
+					<!-- LINEA 4 FIN -->	
+                    <hr>										
+					<div class="row"> <!-- LINEA 5 -->    
 						<div class="col-md-12 form-group">
 							<label class="small font-weight-bold text-muted">PRODUCTO (CÓDIGO)</label>
 							<span class="info-icon" data-toggle="tooltip" title="Producto de inventario vinculado para la integración contable de la venta.">(?)</span>
@@ -526,15 +688,12 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 								?>
 							</select>					
 						</div>
-					</div>
-                    <div class="row mt-2">
-                        <div class="col-md-3 text-center"><label class="small font-weight-bold">Clientes</label><br><label class="ios-switch"><input type="checkbox" name="f_visible_cliente" id="f_visible_cliente"><span class="slider"></span></label></div>
-                        <div class="col-md-3 text-center"><label class="small font-weight-bold">Facturacion</label><br><label class="ios-switch"><input type="checkbox" name="f_fact_auto" id="f_fact_auto"><span class="slider"></span></label></div>
-                        <div class="col-md-3 text-center"><label class="small font-weight-bold">Soporte</label><br><label class="ios-switch"><input type="checkbox" name="f_visible_soporte" id="f_visible_soporte"><span class="slider"></span></label></div>
-                        <div class="col-md-3 text-center"><label class="small font-weight-bold">Genera Comision</label><br><label class="ios-switch"><input type="checkbox" name="f_generar_comision_bancaria" id="f_generar_comision_bancaria"><span class="slider"></span></label></div>
-                    </div>
+					</div> <!-- LINEA 5 FIN-->    												
                 </div>
-                <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cerrar</button><button type="submit" name="btn_save_forma" class="btn btn-primary btn-sm">Guardar Forma</button></div>
+                <div class="modal-footer">
+					<button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cerrar</button>
+					<button type="button" onclick="validarGuardarForma()" class="btn btn-primary btn-sm">Guardar Forma</button>
+				</div>
             </form>
         </div>
     </div>
@@ -629,6 +788,8 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
                 success: function(h) { 
                     $(`#container_${id}`).html(h); 
                     row.show(); 
+					// REINICIALIZAR AYUDAS EN LA SUBTABLA (Sintaxis Scriptcase)
+					$('[' + 'data-toggle="tooltip"' + ']').tooltip();
                 } 
             }); 
         }
@@ -670,6 +831,10 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 
 		// 5. OTROS CAMPOS
 		$('#f_codigo_productos').val(data[17]);
+		
+		// NUEVOS CAMPOS
+ 	    $('#f_visible_icarobot_ia').prop('checked', data[18] == 1);
+	    $('#f_visible_aliado').prop('checked', data[19] == 1);
 
 		// 6. INTERFAZ
 		$('#lblTitleForma').text('Editar Forma: ' + data[2]); // Muestra el nombre en el título
@@ -690,6 +855,80 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 			}
 		});
 	}
+	
+	function validarGuardarTipo() {
+		const cod = $('#t_codigo').val().trim();
+		const nom = $('#t_nombre').val().trim();
+		const id_pk = $('#t_id_pk').val(); // Si tiene ID, estamos editando
+
+		if (cod === "" || nom === "") {
+			Swal.fire({ icon: 'error', title: 'Campos Obligatorios', text: 'Todos los campos marcados con (*) son obligatorios.' });
+			return;
+		}
+
+		// Si es un nuevo registro (id_pk vacío), validamos duplicados
+		if (id_pk === "") {
+			$.get(myAppUrl, { action: 'check_duplicate_codigo', codigo: cod }, function(res) {
+				if (res === 'existe') {
+					Swal.fire({
+						icon: 'error',
+						title: 'Código Duplicado',
+						text: 'El código de pago ' + cod + ' ya se encuentra registrado para esta empresa y sucursal.',
+						confirmButtonColor: '#3085d6'
+					});
+				} else {
+					// Si no existe, enviamos el formulario
+					$('<input>').attr({type: 'hidden', name: 'btn_save_tipo', value: '1'}).appendTo('#form_tipo');
+					$('#form_tipo').submit();
+				}
+			});
+		} else {
+			// Si estamos editando, enviamos directo
+			$('<input>').attr({type: 'hidden', name: 'btn_save_tipo', value: '1'}).appendTo('#form_tipo');
+			$('#form_tipo').submit();
+		}
+	}
+	
+	// Función para validar y enviar Forma de Pago
+	function validarGuardarForma() {
+		const cod = $('#f_codigo_formas_pago').val().trim();
+		const nom = $('#f_nombre_formas_pago').val().trim();
+		const banco = $('#f_codigo_banco').val();
+		const moneda = $('#f_codigo_moneda').val();
+		const id_pk = $('#f_id_pk').val(); // Si está vacío es una inserción
+
+		if (cod === "" || nom === "" || banco === "" || moneda === "") {
+			Swal.fire({
+				icon: 'error',
+				title: 'Atención',
+				text: 'Todos los campos marcados con (*) son obligatorios.',
+				confirmButtonColor: '#3085d6'
+			});
+			return;
+		}
+
+		// Si es un nuevo registro, validamos duplicados vía AJAX
+		if (id_pk === "") {
+			$.get(myAppUrl, { action: 'check_duplicate_forma', codigo_forma: cod }, function(res) {
+				if (res === 'existe') {
+					Swal.fire({
+						icon: 'error',
+						title: 'Código de Forma Duplicado',
+						text: 'El código de forma "' + cod + '" ya se encuentra registrado para esta empresa y sucursal.',
+						confirmButtonColor: '#3085d6'
+					});
+				} else {
+					// Si no existe duplicado, enviamos
+					$('<input>').attr({type: 'hidden', name: 'btn_save_forma', value: '1'}).appendTo('#form_forma');
+					$('#form_forma').submit();
+				}
+			});
+		} else {
+			// Si estamos editando, enviamos directamente
+			$('<input>').attr({type: 'hidden', name: 'btn_save_forma', value: '1'}).appendTo('#form_forma');
+			$('#form_forma').submit();
+		}
+	}	
 </script>
 </body>
 </html>
