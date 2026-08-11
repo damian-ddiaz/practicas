@@ -150,7 +150,7 @@ if (isset($_GET['ajax_mode'])) {
             
             $badge = ($ds->fields[3] == 'ACTIVO') ? 'bg-activo' : 'bg-inactivo';
             $vis = [];
-            if($ds->fields[4]) $vis[] = "Clientes"; if($ds->fields[5]) $vis[] = "Soporte"; if($ds->fields[6]) $vis[] = "Aliados"; if($ds->fields[7]) $vis[] = "Administracion";
+            if($ds->fields[4]) $vis[] = "Clientes"; if($ds->fields[5]) $vis[] = "Soporte"; if($ds->fields[6]) $vis[] = "Aliados"; if($ds->fields[7]) $vis[] = "Administracion"; if($ds->fields[8]) $vis[] = "Ret. (Portal Clientes)";
             
             $html_rows .= "<tr id='tr_parent_{$f_id}'>
                 <td>{$ds->fields[1]}</td> 
@@ -179,29 +179,36 @@ if (isset($_GET['get_formas_pago'])) {
     $codigo_tipo = sc_sql_injection($_GET['get_formas_pago']);
     
     // El orden de este SELECT es vital para el JS
-    $sql_formas = "SELECT 
-                    id_banco_formas_pago,        /* 0 */
-                    codigo_formas_pago,          /* 1 */
-                    nombre_formas_pago,          /* 2 */
-                    codigo_banco,                /* 3 */
-                    codigo_moneda,               /* 4 */
-                    comision,                    /* 5 */
-                    moneda_convertible,          /* 6 */
-                    porc_reten,                  /* 7 */
-                    requiere_referencia,         /* 8 */
-                    mensaje_cliente,             /* 9 */
-                    visible_cliente,             /* 10 */
-                    visible_soporte,             /* 11 */
-                    fact_auto,                   /* 12 */
-                    generar_comision_bancaria,   /* 13 */
-                    tipo_documento,              /* 14 */
-                    cuenta_padre,                /* 15 */
-                    cuenta_hijo,                 /* 16 */
-                    codigo_productos,            /* 17 */
-                    visible_icarobot_ia,         /* 18 */
-                    visible_aliado               /* 19 */
-                   FROM banco_formas_pago 
-                   WHERE codigo_tipo_pago = $codigo_tipo AND empresa = '$usr_empresa' AND sucursal = '$usr_sucursal'";
+	$sql_formas = "SELECT 
+					id_banco_formas_pago,        /* 0 */
+					codigo_formas_pago,          /* 1 */
+					nombre_formas_pago,          /* 2 */
+					codigo_banco,                /* 3 */
+					codigo_moneda,               /* 4 */
+					comision,                    /* 5 */
+					moneda_convertible,          /* 6 */
+					porc_reten,                  /* 7 */
+					requiere_referencia,         /* 8 */
+					mensaje_cliente,             /* 9 */
+					visible_cliente,             /* 10 */
+					visible_soporte,             /* 11 */
+					fact_auto,                   /* 12 */
+					generar_comision_bancaria,   /* 13 */
+					tipo_documento,              /* 14 */
+					cuenta_padre,                /* 15 */
+					cuenta_hijo,                 /* 16 */
+					codigo_productos,            /* 17 */
+					visible_icarobot_ia,         /* 18 */
+					visible_aliado,              /* 19 */
+					generar_comision_bancaria_cxp, /* 20 */
+					porcentaje_comision_bancaria,  /* 21 */
+					fecha_inicio_comision,        /* 22 */
+					/* NUEVA COLUMNA: VERIFICACIÓN DE USO (Índice 23) */
+					(SELECT CASE WHEN EXISTS (SELECT 1 FROM ventas_transacciones_detalles WHERE empresa = '$usr_empresa' AND sucursal = '$usr_sucursal' AND tipo_pago = banco_formas_pago.codigo_tipo_pago AND forma_pago = banco_formas_pago.codigo_formas_pago) 
+							  OR EXISTS (SELECT 1 FROM compras_transacciones_detalles WHERE empresa = '$usr_empresa' AND sucursal = '$usr_sucursal' AND tipo_pago = banco_formas_pago.codigo_tipo_pago AND forma_pago = banco_formas_pago.codigo_formas_pago) 
+					THEN 1 ELSE 0 END) as en_uso
+				   FROM banco_formas_pago 
+				   WHERE codigo_tipo_pago = $codigo_tipo AND empresa = '$usr_empresa' AND sucursal = '$usr_sucursal'";
     sc_select(ds_f, $sql_formas);
     
     $sub_table = "<div class='p-3 bg-light border-bottom'><div class='d-flex justify-content-between align-items-center mb-2'><h6 class='m-0 font-weight-bold text-secondary'>Formas de Pago</h6><button class='btn btn-success btn-sm' onclick='openModalNuevaForma(\"".$_GET['get_formas_pago']."\")'><i class='fas fa-plus-circle'></i> Nueva Forma</button></div><div class='table-responsive shadow-sm'>";
@@ -210,7 +217,7 @@ if (isset($_GET['get_formas_pago'])) {
     if ($ds_f && !$ds_f->EOF) {
         while (!$ds_f->EOF) {
             $clean_f = [];
-            for($i=0; $i<20; $i++){
+            for($i=0; $i<24; $i++){
 				$clean_f[] = $ds_f->fields[$i]; 
 			}
             $json_f = json_encode($clean_f);
@@ -301,7 +308,6 @@ if (isset($_POST['btn_save_tipo'])) {
 
 // 2. PROCESAMIENTO CRUD (Guardado de Formas de Pago)
 if (isset($_POST['btn_save_forma'])) {
-    
     // --- INICIO DE VALIDACIONES PROFESIONALES ---
     $raw_f_cod = $_POST['f_codigo_formas_pago'];
     $raw_f_nom = $_POST['f_nombre_formas_pago'];
@@ -335,6 +341,49 @@ if (isset($_POST['btn_save_forma'])) {
         </script></body>";
         exit;
     }
+		
+	$v_cxp = isset($_POST['f_generar_comision_bancaria_cxp']) ? 1 : 0;
+    $raw_porc = $_POST['f_porcentaje_comision_bancaria'];
+    $raw_fecha = $_POST['f_fecha_inicio_comision'];
+    $raw_prod = $_POST['f_codigo_productos'];
+
+
+	 // VALIDACIÓN CONDICIONAL CXP Y PROVEEDOR DE BANCO
+    if ($v_cxp == 1) {
+        // 1. Validar campos obligatorios de la interfaz
+        $campos_incompletos = (empty($raw_porc) || empty($raw_fecha) || empty($raw_prod));
+
+        // 2. Validar que el banco tenga un proveedor asignado en la DB
+        sc_lookup(ds_ban_check, "SELECT id_proveedor FROM bancos 
+                                 WHERE codigo_banco = '$raw_f_ban' 
+                                 AND empresa = '$usr_empresa'");
+        
+      //  $banco_sin_proveedor = (!isset($ds_ban_check[0][0]) || $ds_ban_check[0][0] <= 0);
+		
+		$banco_sin_proveedor = (empty($ds_ban_check[0][0]) || $ds_ban_check[0][0] <= 0);
+
+        if ($campos_incompletos || $banco_sin_proveedor) {
+            while (ob_get_level()) ob_end_clean();
+            
+            // Construcción dinámica del mensaje según el error
+            $msg_final = "Los campos:  Comis. Bancaria, Fecha Inicio Comisión, Producto son obligatorios cuando CxP está activo.";
+            if ($banco_sin_proveedor) {
+                $msg_final .= " Además, el banco seleccionado debe tener un proveedor asignado en su configuración.";
+            }
+
+            echo "<body><script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
+            <script>
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validación CxP Fallida',
+                    text: '$msg_final',
+                    confirmButtonColor: '#3085d6'
+                }).then(() => { window.history.back(); });
+            </script></body>";
+            exit;
+        }
+    }
+	
     // --- FIN DE VALIDACIONES ---
 
     // Proseguimos con la sanitización de datos (Lógica original)
@@ -357,33 +406,44 @@ if (isset($_POST['btn_save_forma'])) {
     $g_cb = isset($_POST['f_generar_comision_bancaria']) ? 1 : 0;
 	$v_ia = isset($_POST['f_visible_icarobot_ia']) ? 1 : 0; // Agregado
     $v_al = isset($_POST['f_visible_aliado']) ? 1 : 0;  // Agregado	
+	$v_cxp = isset($_POST['f_generar_comision_bancaria_cxp']) ? 1 : 0;
 	
-	
+	if ($v_cxp == 0) {
+		$v_f_comi = "'0000-00-00'"; 
+	} else {
+		$v_f_comi = sc_sql_injection($_POST['f_fecha_inicio_comision']);
+	}
+		
+	$v_p_comi = !empty($_POST['f_porcentaje_comision_bancaria']) ? 	$_POST['f_porcentaje_comision_bancaria'] : 0.01;
+		
     $c_prod = sc_sql_injection($_POST['f_codigo_productos']); 
 
     if(empty($id_f)) {
         // INSERTAR NUEVA FORMA (Columnas duplicadas eliminadas)
-        $sql = "INSERT INTO banco_formas_pago (codigo_formas_pago, nombre_formas_pago, moneda_convertible, porc_reten, codigo_tipo_pago, codigo_banco, codigo_moneda, requiere_referencia, usuario, fecha, empresa, sucursal, ip_usuario, mensaje_cliente, comision, fact_auto, generar_comision_bancaria, codigo_productos, cuenta_padre, cuenta_hijo, visible_cliente, visible_soporte, visible_aliado, visible_icarobot_ia) 
-                VALUES ($c_fp, $n_fp, $m_cv, $p_rt, $c_tp, $c_ba, $c_mo, $r_re, '$usr_login', '".date('Y-m-d')."', '$usr_empresa', '$usr_sucursal', '".$_SERVER['REMOTE_ADDR']."', $m_cl, $comi, $f_au, $g_cb, $c_prod, ' ',' ', $v_cl, $v_so, $v_al, $v_ia)";
+        $sql = "INSERT INTO banco_formas_pago (codigo_formas_pago, nombre_formas_pago, moneda_convertible, porc_reten, codigo_tipo_pago, codigo_banco, codigo_moneda, requiere_referencia, usuario, fecha, empresa, sucursal, ip_usuario, mensaje_cliente, comision, fact_auto, generar_comision_bancaria, codigo_productos, cuenta_padre, cuenta_hijo, visible_cliente, visible_soporte, visible_aliado, visible_icarobot_ia, f_generar_comision_bancaria_cxp, porcentaje_comision_bancaria, fecha_inicio_comision) 
+                VALUES ($c_fp, $n_fp, $m_cv, $p_rt, $c_tp, $c_ba, $c_mo, $r_re, '$usr_login', '".date('Y-m-d')."', '$usr_empresa', '$usr_sucursal', '".$_SERVER['REMOTE_ADDR']."', $m_cl, $comi, $f_au, $g_cb, $c_prod, ' ',' ', $v_cl, $v_so, $v_al, $v_ia, $v_cxp, $v_p_comi, $v_f_comi)";
     } else {
         // ACTUALIZAR FORMA EXISTENTE (Asignaciones duplicadas eliminadas)
         $sql = "UPDATE banco_formas_pago SET 
-                codigo_formas_pago          =   $c_fp, 
-                nombre_formas_pago          =   $n_fp, 
-                moneda_convertible          =   $m_cv, 
-                porc_reten                  =   $p_rt, 
-                codigo_banco                =   $c_ba, 
-                codigo_moneda               =   $c_mo, 
-                requiere_referencia         =   $r_re, 
-                mensaje_cliente             =   $m_cl, 
-                comision                    =   $comi, 
-                fact_auto                   =   $f_au, 
-                generar_comision_bancaria   =   $g_cb, 
-                codigo_productos            =   $c_prod,
-                visible_cliente             =   $v_cl, 
-                visible_soporte             =   $v_so, 
-                visible_aliado              =   $v_al, 
-                visible_icarobot_ia         =   $v_ia
+                codigo_formas_pago          	=   $c_fp, 
+                nombre_formas_pago          	=   $n_fp, 
+                moneda_convertible          	=   $m_cv, 
+                porc_reten                  	=   $p_rt, 
+                codigo_banco                	=   $c_ba, 
+                codigo_moneda               	=   $c_mo, 
+                requiere_referencia         	=   $r_re, 
+                mensaje_cliente             	=   $m_cl, 
+                comision                    	=   $comi, 
+                fact_auto                   	=   $f_au, 
+                generar_comision_bancaria   	=   $g_cb, 
+                codigo_productos            	=   $c_prod,
+                visible_cliente             	=   $v_cl, 
+                visible_soporte            		=   $v_so, 
+                visible_aliado          	    =   $v_al, 
+                visible_icarobot_ia  	       	=   $v_ia,
+	            generar_comision_bancaria_cxp 	= 	$v_cxp,
+	            porcentaje_comision_bancaria  	= 	$v_p_comi,
+				fecha_inicio_comision 			=   $v_f_comi
                 WHERE id_banco_formas_pago=".sc_sql_injection($id_f);
     }
 
@@ -418,11 +478,23 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        body { background-color: #f8f9fa; padding: 20px; font-family: 'Segoe UI', sans-serif; }
-        .main-card { border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); background: #fff; }
-        .table thead th { background-color: #2d3e50; color: #fff; padding: 12px; }
+        body { 
+			background-color: #f8f9fa; 
+			padding: 20px; font-family: 'Segoe UI', sans-serif; 
+		}
 		
-     /*   .badge-custom { border-radius: 4px; padding: 6px 12px; font-weight: 700; color: #fff; }*/
+        .main-card { 
+			border-radius: 5px; 
+			box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+			background: #fff; 
+		}
+		
+        .table thead th { 
+			background-color: #2d3e50; 
+			color: #fff; 
+			padding: 12px; 
+		}
+		
 		.badge-custom { 
 			border-radius: 4px; 
 			padding: 6px 12px; 
@@ -433,13 +505,62 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 			text-align: center;    /* Centra el texto dentro del badge */
 		}
 		
-        .bg-activo { background-color: #28a745; } .bg-inactivo { background-color: #dc3545; }
-        .ios-switch { position: relative; display: inline-block; width: 44px; height: 22px; }
-        .ios-switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #5dade2; }
-        input:checked + .slider:before { transform: translateX(22px); content: '✓'; font-size: 10px; color: #5dade2; text-align: center; line-height: 18px; }
+        .bg-activo { 
+			background-color: #2d3e50; 
+		} 
+		
+		.bg-inactivo { 
+			background-color: #dc3545; 
+		}
+		
+        .ios-switch { 
+			position: relative; 
+			display: inline-block; 
+			width: 44px; 
+			height: 22px; 
+		}
+		
+        .ios-switch input { 
+			opacity: 0; 
+			width: 0; 
+			height: 0; 
+		}
+		
+        .slider { 
+			position: absolute;
+			cursor: pointer; 
+			top: 0; 
+			left: 0; 
+			right: 0; 
+			bottom: 0; 
+			background-color: #ccc; 
+			transition: .4s; 
+			border-radius: 34px; 
+		}	
+		
+        .slider:before { 
+			position: absolute; 
+			content: ""; 
+			height: 18px; 
+			width: 18px; 
+			left: 2px; 
+			bottom: 2px; 
+			background-color: white; 
+			transition: .4s; 
+			border-radius: 50%; 
+		}
+        input:checked + .slider { 
+			background-color: #5dade2; 
+		}
+		
+        input:checked + .slider:before { 
+			transform: translateX(22px); 
+			content: '✓'; font-size: 10px; 
+			color: #5dade2; 
+			text-align: center; 
+			line-height: 18px; 
+		}
+		
 		.info-icon { 
 			color: #17a2b8; 
 			cursor: help; 
@@ -505,13 +626,13 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 						<input type="text" name="t_codigo" id="t_codigo" class="form-control" maxlength="10" required>
                     </div>
                     <div class="form-group">
-                        <label class="small font-weight-bold">NOMBRE TIPO *</label>
-						<span class="info-icon" data-toggle="tooltip" title="Nombre descriptivo general (Ej: EFECTIVO, TRANSFERENCIA, TARJETA).">(?)</span>
+                        <label class="small font-weight-bold">NOMBRE TIPO PAGO *</label>
+						<span class="info-icon" data-toggle="tooltip" title="Nombre del Tipo Pago (Ej: EFECTIVO, TRANSFERENCIA, TARJETA).">(?)</span>
                         <input type="text" name="t_nombre" id="t_nombre" class="form-control" required>
                     </div>
                     <div class="form-group">
                         <label class="small font-weight-bold">ESTATUS</label>
-						<span class="info-icon" data-toggle="tooltip" title="ACTIVO permite usar este tipo en transacciones. INACTIVO lo oculta.">(?)</span>
+						<span class="info-icon" data-toggle="tooltip" title="Segun su Estatus estara Disponible o NO, al momento de Realizar una Transaccion.">(?)</span>
                         <select name="t_estatus" id="t_estatus" class="form-control">
                             <option value="ACTIVO">ACTIVO</option>
                             <option value="INACTIVO">INACTIVO</option>
@@ -672,11 +793,37 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 						</div>
 					</div>
 					<!-- LINEA 4 FIN -->	
-                    <hr>										
-					<div class="row"> <!-- LINEA 5 -->    
+                    <hr>				
+					<!-- LINEA 5: CONFIGURACIÓN FINANCIERA CXP -->
+					<div class="row mt-3"> 
+						<div class="col-md-5 form-group">
+							<label class="small font-weight-bold">Generar Comisión Bancaria CxP</label>
+							<span class="info-icon" data-toggle="tooltip" title="¿Esta forma de pago genera una comisión automática en las cuentas por pagar?">(?)</span>
+							<br>
+							<label class="ios-switch">
+								<input type="checkbox" name="f_generar_comision_bancaria_cxp" id="f_generar_comision_bancaria_cxp">
+								<span class="slider"></span>
+							</label>
+						</div>
+
+						<div class="col-md-3 form-group">
+							<label class="small font-weight-bold">% Comis. Bancaria</label>
+							<span class="info-icon" data-toggle="tooltip" title="Porcentaje de comisión bancaria para el cálculo automático.">(?)</span>
+							<input type="number" step="0.01" name="f_porcentaje_comision_bancaria" id="f_porcentaje_comision_bancaria" class="form-control">
+						</div>
+
+						<div class="col-md-4 form-group">
+							<label class="small font-weight-bold">Fecha Inicio Comisión</label>
+							<span class="info-icon" data-toggle="tooltip" title="Fecha a partir de la cual se aplica el porcentaje de comisión.">(?)</span>
+							<input type="date" name="f_fecha_inicio_comision" id="f_fecha_inicio_comision" class="form-control">
+						</div>
+					</div> 
+
+					<!-- LINEA 6: AUXILIAR CONTABLE -->
+					<div class="row">
 						<div class="col-md-12 form-group">
 							<label class="small font-weight-bold text-muted">PRODUCTO (CÓDIGO)</label>
-							<span class="info-icon" data-toggle="tooltip" title="Producto de inventario vinculado para la integración contable de la venta.">(?)</span>
+							<span class="info-icon" data-toggle="tooltip" title="Producto de inventario vinculado para la integración contable.">(?)</span>
 							<select name="f_codigo_productos" id="f_codigo_productos" class="form-control">
 								<option value="">-- Seleccione un Producto --</option>
 								<?php 
@@ -688,8 +835,9 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 								?>
 							</select>					
 						</div>
-					</div> <!-- LINEA 5 FIN-->    												
-                </div>
+					</div>
+					
+				</div>
                 <div class="modal-footer">
 					<button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cerrar</button>
 					<button type="button" onclick="validarGuardarForma()" class="btn btn-primary btn-sm">Guardar Forma</button>
@@ -714,6 +862,29 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 			clearTimeout(window.searchTimer); 
 			window.searchTimer = setTimeout(() => loadTable(1), 300); 
 		});
+		
+		// Escuchar cambios en el switch de Comisión Bancaria Cliente
+		$('#f_generar_comision_bancaria').on('change', function() {
+			if ($(this).is(':checked')) {
+				$('#f_comision').prop('disabled', false);
+			} else {
+				$('#f_comision').prop('disabled', true).val('0.00'); // Deshabilita y resetea a 0
+			}
+		});		
+		
+		// Escuchar cambios en el switch de Generar Comisión Bancaria CxP
+		$('#f_generar_comision_bancaria_cxp').on('change', function() {
+			const isChecked = $(this).is(':checked');
+			// Habilitar o deshabilitar los 3 campos dependientes
+			$('#f_porcentaje_comision_bancaria, #f_fecha_inicio_comision, #f_codigo_productos').prop('disabled', !isChecked);
+
+			if (!isChecked) {
+				// Opcional: Limpiar valores al deshabilitar
+				$('#f_porcentaje_comision_bancaria').val('0.00');
+				$('#f_fecha_inicio_comision').val('');
+				$('#f_codigo_productos').val('');
+			}
+		});		
 	});
 
     // --- FUNCIONES TABLA PRINCIPAL (TIPO DE PAGO) ---
@@ -729,32 +900,43 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
         });
     }
 
-    function openModal() {
-        // Limpia el formulario de Tipo de Pago
-        $('#form_tipo')[0].reset();
-        $('#t_id_pk').val('');
-        $('#lblTitleTipo').text('Editar Registro');
-        $('#modalTipoPago').modal('show');
-    }
+	function openModal() {
+		$('#form_tipo')[0].reset();
+		$('#t_id_pk').val('');
 
-    function editRow(data) {
-        $('#form_tipo')[0].reset(); 
-        // Asignación de datos (basado en el SELECT de la lógica AJAX 1)
-        $('#t_id_pk').val(data[0]);
-        $('#t_codigo').val(data[1]);
-        $('#t_nombre').val(data[2]);
-        $('#t_estatus').val(data[3]);
+		// IMPORTANTE: Asegurar que los campos estén habilitados para nuevos registros
+		$('#t_codigo, #t_nombre').prop('disabled', false);
 
-        // Checkboxes de visibilidad
-        $('#t_v_cli').prop('checked', data[4] == 1);
-        $('#t_v_sop').prop('checked', data[5] == 1);
-        $('#t_v_ali').prop('checked', data[6] == 1);
-        $('#t_v_adm').prop('checked', data[7] == 1);
-	    $('#t_retencion').prop('checked', data[8] == 1);
+		$('#lblTitleTipo').text('Nuevo Tipo de Pago');
+		$('#modalTipoPago').modal('show');
+	}
+	
+	function editRow(data) {
+		$('#form_tipo')[0].reset(); 
+		$('#t_id_pk').val(data[0]);
+		$('#t_codigo').val(data[1]);
+		$('#t_nombre').val(data[2]);
+		$('#t_estatus').val(data[3]);
 
-        $('#lblTitleTipo').text('Editar Registro');
-        $('#modalTipoPago').modal('show');
-    }
+		// Checkboxes de visibilidad (mantén tu lógica actual)
+		$('#t_v_cli').prop('checked', data[4] == 1);
+		$('#t_v_sop').prop('checked', data[5] == 1);
+		$('#t_v_ali').prop('checked', data[6] == 1);
+		$('#t_v_adm').prop('checked', data[7] == 1);
+		$('#t_retencion').prop('checked', data[8] == 1);
+
+		// --- NUEVA LÓGICA DE BLOQUEO ---
+		// data[9] contiene el conteo de banco_formas_pago (total_formas en tu SQL)
+		const tieneRegistrosVinculados = (parseInt(data[9]) > 0);
+
+		// Deshabilita si tiene registros, habilita si no
+		$('#t_codigo, #t_nombre').prop('disabled', tieneRegistrosVinculados);
+
+		$('#lblTitleTipo').text('Editar Registro');
+		// --- FIN LÓGICA DE BLOQUEO ---
+
+		$('#modalTipoPago').modal('show');
+	}
 
 	function confirmDelete(id) {
         Swal.fire({ 
@@ -800,6 +982,11 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
         $('#f_id_pk').val('');
         $('#f_codigo_tipo_pago').val(codigo_tipo);
         $('#lblTitleForma').text('Nueva Forma para: ' + codigo_tipo);
+		
+		// Iniciar campos dependientes deshabilitados por defecto
+    	$('#f_porcentaje_comision_bancaria, #f_fecha_inicio_comision, #f_codigo_productos').prop('disabled', true);
+		
+		$('#f_codigo_formas_pago, #f_nombre_formas_pago').prop('disabled', false);		
         $('#modalFormaPago').modal('show');
     }
 
@@ -810,6 +997,9 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 		// 2. Asignación de IDs y códigos de relación
 		$('#f_id_pk').val(data[0]);              // id_banco_formas_pago
 		$('#f_codigo_tipo_pago').val(codigo_tipo); 
+		
+		// Iniciar campo de comisión deshabilitado por defecto
+    	$('#f_comision').prop('disabled', true); 
 
 		// 3. CAMPOS DE TEXTO Y SELECTS (Mapeo según SELECT de Logica AJAX 2)
 		$('#f_codigo_formas_pago').val(data[1]); // <--- Aquí se asigna el Código de la Forma
@@ -836,9 +1026,38 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
  	    $('#f_visible_icarobot_ia').prop('checked', data[18] == 1);
 	    $('#f_visible_aliado').prop('checked', data[19] == 1);
 
+		$('#f_generar_comision_bancaria_cxp').prop('checked', data[20] == 1);
+        $('#f_porcentaje_comision_bancaria').val(data[21]);		
+		$('#f_fecha_inicio_comision').val(data[22]);
+
 		// 6. INTERFAZ
 		$('#lblTitleForma').text('Editar Forma: ' + data[2]); // Muestra el nombre en el título
+		
+		
+		// --- NUEVA LÓGICA DE BLOQUEO POR USO ---
+		const estaEnUso = (data[23] == 1); // El nuevo índice que agregamos en el SQL
+
+		// Deshabilitar CÓDIGO y NOMBRE si tiene transacciones
+		$('#f_codigo_formas_pago, #f_nombre_formas_pago').prop('disabled', estaEnUso);
+
+//		if (estaEnUso) {
+//			$('#lblTitleForma').text('Consultar Forma: ' + data[2] + ' (Protegida por Movimientos)');
+//		} else {
+			$('#lblTitleForma').text('Editar Forma: ' + data[2]);
+	//	}
+		// --- FIN LÓGICA DE BLOQUEO ---	
+		
 		$('#modalFormaPago').modal('show');
+		
+		// Lógica para habilitar/deshabilitar campo COMISIÓN según el valor cargado
+		const generaComision = (data[13] == 1); // Índice 13 es generar_comision_bancaria
+		$('#f_generar_comision_bancaria').prop('checked', generaComision);
+		$('#f_comision').prop('disabled', !generaComision); 		
+		
+		 // Lógica para habilitar/deshabilitar según el valor cargado (Índice 20)
+		const generaCxP = (data[20] == 1); 
+		$('#f_generar_comision_bancaria_cxp').prop('checked', generaCxP);
+		$('#f_porcentaje_comision_bancaria, #f_fecha_inicio_comision, #f_codigo_productos').prop('disabled', !generaCxP);	
 	}
 
 	function confirmDeleteForma(id) {
@@ -857,46 +1076,52 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 	}
 	
 	function validarGuardarTipo() {
+		// jQuery .val() sí obtiene el valor aunque esté disabled
 		const cod = $('#t_codigo').val().trim();
 		const nom = $('#t_nombre').val().trim();
-		const id_pk = $('#t_id_pk').val(); // Si tiene ID, estamos editando
+		const id_pk = $('#t_id_pk').val(); 
 
 		if (cod === "" || nom === "") {
-			Swal.fire({ icon: 'error', title: 'Campos Obligatorios', text: 'Todos los campos marcados con (*) son obligatorios.' });
+			Swal.fire({ 
+				icon: 'error', 
+				title: 'Campos Obligatorios', 
+				text: 'Todos los campos marcados con (*) son obligatorios.' 
+			});
 			return;
 		}
 
-		// Si es un nuevo registro (id_pk vacío), validamos duplicados
 		if (id_pk === "") {
+			// Lógica de duplicados para NUEVOS registros
 			$.get(myAppUrl, { action: 'check_duplicate_codigo', codigo: cod }, function(res) {
 				if (res === 'existe') {
-					Swal.fire({
-						icon: 'error',
-						title: 'Código Duplicado',
-						text: 'El código de pago ' + cod + ' ya se encuentra registrado para esta empresa y sucursal.',
-						confirmButtonColor: '#3085d6'
-					});
+					Swal.fire({ icon: 'error', title: 'Código Duplicado', text: 'El código ' + cod + ' ya existe.' });
 				} else {
-					// Si no existe, enviamos el formulario
-					$('<input>').attr({type: 'hidden', name: 'btn_save_tipo', value: '1'}).appendTo('#form_tipo');
-					$('#form_tipo').submit();
+					enviarFormularioTipo();
 				}
 			});
 		} else {
-			// Si estamos editando, enviamos directo
-			$('<input>').attr({type: 'hidden', name: 'btn_save_tipo', value: '1'}).appendTo('#form_tipo');
-			$('#form_tipo').submit();
+			// Para EDICIÓN: habilitamos antes de enviar para que el PHP reciba los datos
+			enviarFormularioTipo();
 		}
+	}
+
+	// Función auxiliar para habilitar y enviar
+	function enviarFormularioTipo() {
+		$('#t_codigo, #t_nombre').prop('disabled', false); // <--- CLAVE: Habilitar antes de enviar
+		$('<input>').attr({type: 'hidden', name: 'btn_save_tipo', value: '1'}).appendTo('#form_tipo');
+		$('#form_tipo').submit();
 	}
 	
 	// Función para validar y enviar Forma de Pago
 	function validarGuardarForma() {
+		// 1. Obtener valores de campos maestros (leemos .val() por si están disabled)
 		const cod = $('#f_codigo_formas_pago').val().trim();
 		const nom = $('#f_nombre_formas_pago').val().trim();
 		const banco = $('#f_codigo_banco').val();
 		const moneda = $('#f_codigo_moneda').val();
-		const id_pk = $('#f_id_pk').val(); // Si está vacío es una inserción
+		const id_pk = $('#f_id_pk').val();
 
+		// 2. Validación de campos maestros obligatorios
 		if (cod === "" || nom === "" || banco === "" || moneda === "") {
 			Swal.fire({
 				icon: 'error',
@@ -907,27 +1132,52 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 			return;
 		}
 
-		// Si es un nuevo registro, validamos duplicados vía AJAX
+		// 3. NUEVA VALIDACIÓN: Si "Generar Comisión CxP" está marcado (valor 1)
+		if ($('#f_generar_comision_bancaria_cxp').is(':checked')) {
+			const porc = $('#f_porcentaje_comision_bancaria').val().trim();
+			const fecha = $('#f_fecha_inicio_comision').val().trim();
+			const prod = $('#f_codigo_productos').val();
+
+			// Si alguno de los 3 campos está vacío, lanzamos alerta y detenemos
+			if (porc === "" || fecha === "" || prod === "" || fecha === "0000-00-00") {
+				Swal.fire({
+					icon: 'warning',
+					title: 'Campos CxP Requeridos',
+					text: 'Al activar "Generar Comisión CxP", el porcentaje, la fecha y el producto son obligatorios.',
+					confirmButtonColor: '#3085d6'
+				});
+				return;
+			}
+		}
+
+		// 4. Lógica de envío o validación de duplicados
 		if (id_pk === "") {
+			// Registro NUEVO: Validar duplicado antes de enviar
 			$.get(myAppUrl, { action: 'check_duplicate_forma', codigo_forma: cod }, function(res) {
 				if (res === 'existe') {
 					Swal.fire({
 						icon: 'error',
 						title: 'Código de Forma Duplicado',
-						text: 'El código de forma "' + cod + '" ya se encuentra registrado para esta empresa y sucursal.',
+						text: 'El código de forma "' + cod + '" ya se encuentra registrado.',
 						confirmButtonColor: '#3085d6'
 					});
 				} else {
-					// Si no existe duplicado, enviamos
-					$('<input>').attr({type: 'hidden', name: 'btn_save_forma', value: '1'}).appendTo('#form_forma');
-					$('#form_forma').submit();
+					enviarFormularioForma();
 				}
 			});
 		} else {
-			// Si estamos editando, enviamos directamente
-			$('<input>').attr({type: 'hidden', name: 'btn_save_forma', value: '1'}).appendTo('#form_forma');
-			$('#form_forma').submit();
+			// EDICIÓN: Enviar directamente (la función auxiliar habilitará los campos)
+			enviarFormularioForma();
 		}
+	}
+
+	// NUEVA FUNCIÓN AUXILIAR PARA FORMAS
+	function enviarFormularioForma() {
+		// CLAVE: Habilitar todos los campos antes del submit para que el PHP reciba los datos
+		$('#form_forma').find(':input').prop('disabled', false); 
+
+		$('<input>').attr({type: 'hidden', name: 'btn_save_forma', value: '1'}).appendTo('#form_forma');
+		$('#form_forma').submit();
 	}	
 </script>
 </body>

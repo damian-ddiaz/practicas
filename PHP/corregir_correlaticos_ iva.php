@@ -28,10 +28,10 @@ if ($conn->connect_error) {
 // Iniciar la transacción
 // $conn->begin_transaction();
 
-$var_no_com_ret_org = '20251000005054'; // Retencion Original
-$var_no_com_ret_cop = '20251000005071'; // Retencion ANULADA
+$var_no_com_ret_org = '20260600000183'; // Retencion Original
+$var_no_com_ret_cop = '20260600000182'; // Retencion ANULADA
 
-$var_empresa = 'tecnoven';
+$var_empresa = 'icarosoft';
 // Consulta compras_resumen
 $sql_compras_resumen = "SELECT 
     id_compra, 
