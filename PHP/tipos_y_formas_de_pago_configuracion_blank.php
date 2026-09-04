@@ -8,11 +8,12 @@ $var_wiki	  		= [wiki];
 
 $duplicate_error_msg = ""; 
 
-
 // --- ACCIÓN: Validar Duplicado de Código (AJAX) ---
 if (isset($_GET['action']) && $_GET['action'] == 'check_duplicate_codigo') {
     while (ob_get_level()) ob_end_clean();
-    $cod_check = sc_sql_injection($_GET['codigo']);
+//    $cod_check = sc_sql_injection($_GET['codigo']);
+    $cod_check = sc_sql_injection(strtoupper($_GET['codigo'])); // Forzamos mayúsculas
+
     sc_lookup(ds_dup, "SELECT COUNT(*) FROM banco_tipo_pago 
                        WHERE codigo_tipo_pago = $cod_check 
                        AND empresa = '$usr_empresa' 
@@ -62,7 +63,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete_tipo') {
 // --- ACCIÓN: Validar Duplicado de Código de Forma (AJAX) ---
 if (isset($_GET['action']) && $_GET['action'] == 'check_duplicate_forma') {
     while (ob_get_level()) ob_end_clean();
-    $cod_f_check = sc_sql_injection($_GET['codigo_forma']);
+    //$cod_f_check = sc_sql_injection($_GET['codigo_forma']);
+    $cod_f_check = sc_sql_injection(strtoupper($_GET['codigo_forma'])); // Forzamos mayúsculas	
     sc_lookup(ds_dup_f, "SELECT COUNT(*) FROM banco_formas_pago 
                        WHERE codigo_formas_pago = $cod_f_check 
                        AND empresa = '$usr_empresa' 
@@ -121,6 +123,24 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete_forma') {
     }
 }
 
+
+// --- ACCIÓN: Verificar Proveedor del Banco (AJAX) ---
+if (isset($_GET['action']) && $_GET['action'] == 'verificar_banco_proveedor') {
+    while (ob_get_level()) ob_end_clean();
+    $ban_check = sc_sql_injection($_GET['codigo_banco']);
+    sc_lookup(ds_ban_v, "SELECT id_proveedor FROM bancos 
+                         WHERE codigo_banco = $ban_check 
+                         AND empresa = '$usr_empresa'");
+    
+    // Si no hay proveedor, es 0 o es NULL, devolvemos 'error'
+    if (empty($ds_ban_v[0][0]) || $ds_ban_v[0][0] <= 0) {
+        echo 'sin_proveedor';
+    } else {
+        echo 'ok';
+    }
+    exit;
+}
+
 // --- LOGICA AJAX 1: CARGAR TABLA PRINCIPAL ---
 if (isset($_GET['ajax_mode'])) {
     while (ob_get_level()) ob_end_clean(); 
@@ -148,7 +168,7 @@ if (isset($_GET['ajax_mode'])) {
             for($i=0; $i<10; $i++) { $clean_row[] = $ds->fields[$i]; }
             $json = json_encode($clean_row);
             
-            $badge = ($ds->fields[3] == 'ACTIVO') ? 'bg-activo' : 'bg-inactivo';
+            $badge = ($ds->fields[3] == 'Activo') ? 'bg-activo' : 'bg-inactivo';
             $vis = [];
             if($ds->fields[4]) $vis[] = "Clientes"; if($ds->fields[5]) $vis[] = "Soporte"; if($ds->fields[6]) $vis[] = "Aliados"; if($ds->fields[7]) $vis[] = "Administracion"; if($ds->fields[8]) $vis[] = "Ret. (Portal Clientes)";
             
@@ -242,7 +262,8 @@ if (isset($_GET['get_formas_pago'])) {
 
 // 1. PROCESAMIENTO TIPO DE PAGO (Guardado)
 if (isset($_POST['btn_save_tipo'])) {
-	$v_cod_raw = $_POST['t_codigo'];
+//	$v_cod_raw = $_POST['t_codigo'];
+	$v_cod_raw = strtoupper($_POST['t_codigo']); // Forzamos mayúsculas aquí
     $v_nom_raw = $_POST['t_nombre'];
 
     if (empty($v_cod_raw) || empty($v_nom_raw) || strlen($v_cod_raw) > 10) {
@@ -309,7 +330,8 @@ if (isset($_POST['btn_save_tipo'])) {
 // 2. PROCESAMIENTO CRUD (Guardado de Formas de Pago)
 if (isset($_POST['btn_save_forma'])) {
     // --- INICIO DE VALIDACIONES PROFESIONALES ---
-    $raw_f_cod = $_POST['f_codigo_formas_pago'];
+//    $raw_f_cod = $_POST['f_codigo_formas_pago'];
+	$raw_f_cod = strtoupper($_POST['f_codigo_formas_pago']); // Forzamos mayúsculas aquí
     $raw_f_nom = $_POST['f_nombre_formas_pago'];
     $raw_f_ban = $_POST['f_codigo_banco'];
     $raw_f_mon = $_POST['f_codigo_moneda'];
@@ -420,8 +442,63 @@ if (isset($_POST['btn_save_forma'])) {
 
     if(empty($id_f)) {
         // INSERTAR NUEVA FORMA (Columnas duplicadas eliminadas)
-        $sql = "INSERT INTO banco_formas_pago (codigo_formas_pago, nombre_formas_pago, moneda_convertible, porc_reten, codigo_tipo_pago, codigo_banco, codigo_moneda, requiere_referencia, usuario, fecha, empresa, sucursal, ip_usuario, mensaje_cliente, comision, fact_auto, generar_comision_bancaria, codigo_productos, cuenta_padre, cuenta_hijo, visible_cliente, visible_soporte, visible_aliado, visible_icarobot_ia, f_generar_comision_bancaria_cxp, porcentaje_comision_bancaria, fecha_inicio_comision) 
-                VALUES ($c_fp, $n_fp, $m_cv, $p_rt, $c_tp, $c_ba, $c_mo, $r_re, '$usr_login', '".date('Y-m-d')."', '$usr_empresa', '$usr_sucursal', '".$_SERVER['REMOTE_ADDR']."', $m_cl, $comi, $f_au, $g_cb, $c_prod, ' ',' ', $v_cl, $v_so, $v_al, $v_ia, $v_cxp, $v_p_comi, $v_f_comi)";
+        $sql = "INSERT INTO banco_formas_pago (
+			codigo_formas_pago,             /* 01 */
+			nombre_formas_pago,             /* 02 */
+			moneda_convertible,             /* 03 */
+			porc_reten,                     /* 04 */
+			codigo_tipo_pago,               /* 05 */
+			codigo_banco,                   /* 06 */
+			codigo_moneda,                  /* 07 */
+			requiere_referencia,            /* 08 */
+			usuario,                        /* 09 */
+			fecha,                          /* 10 */
+			empresa,                        /* 11 */
+			sucursal,                       /* 12 */
+			ip_usuario,                     /* 13 */
+			mensaje_cliente,                /* 14 */
+			comision,                       /* 15 */
+			fact_auto,                      /* 16 */
+			generar_comision_bancaria,      /* 17 */
+			codigo_productos,               /* 18 */
+			cuenta_padre,                   /* 19 */
+			cuenta_hijo,                    /* 20 */
+			visible_cliente,                /* 21 */
+			visible_soporte,                /* 22 */
+			visible_aliado,                 /* 23 */
+			visible_icarobot_ia,            /* 24 */
+			generar_comision_bancaria_cxp, /* 25 */
+			porcentaje_comision_bancaria,   /* 26 */
+			fecha_inicio_comision           /* 27 */
+		) VALUES (
+			$c_fp,                          /* 01 */
+			$n_fp,                          /* 02 */
+			$m_cv,                          /* 03 */
+			$p_rt,                          /* 04 */
+			$c_tp,                          /* 05 */
+			$c_ba,                          /* 06 */
+			$c_mo,                          /* 07 */
+			$r_re,                          /* 08 */
+			'$usr_login',                   /* 09 */
+			'".date('Y-m-d')."',            /* 10 */
+			'$usr_empresa',                 /* 11 */
+			'$usr_sucursal',                /* 12 */
+			'".$_SERVER['REMOTE_ADDR']."',  /* 13 */
+			$m_cl,                          /* 14 */
+			$comi,                          /* 15 */
+			$f_au,                          /* 16 */
+			$g_cb,                          /* 17 */
+			$c_prod,                        /* 18 */
+			' ',                            /* 19 */
+			' ',                            /* 20 */
+			$v_cl,                          /* 21 */
+			$v_so,                          /* 22 */
+			$v_al,                          /* 23 */
+			$v_ia,                          /* 24 */
+			$v_cxp,                         /* 25 */
+			$v_p_comi,                      /* 26 */
+			$v_f_comi                       /* 27 */
+		)";
     } else {
         // ACTUALIZAR FORMA EXISTENTE (Asignaciones duplicadas eliminadas)
         $sql = "UPDATE banco_formas_pago SET 
@@ -623,7 +700,10 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
                     <div class="form-group">
                         <label class="small font-weight-bold">CÓDIGO TIPO *</label>
 						<span class="info-icon" data-toggle="tooltip" title="Código único alfanumérico para identificar el tipo de pago (máx. 10 carac.).">(?)</span>
-						<input type="text" name="t_codigo" id="t_codigo" class="form-control" maxlength="10" required>
+						<input type="text" name="t_codigo" id="t_codigo" class="form-control" maxlength="10" 
+							   style="text-transform: uppercase;" 
+							   oninput="this.value = this.value.toUpperCase()" 
+							   required>
                     </div>
                     <div class="form-group">
                         <label class="small font-weight-bold">NOMBRE TIPO PAGO *</label>
@@ -634,8 +714,8 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
                         <label class="small font-weight-bold">ESTATUS</label>
 						<span class="info-icon" data-toggle="tooltip" title="Segun su Estatus estara Disponible o NO, al momento de Realizar una Transaccion.">(?)</span>
                         <select name="t_estatus" id="t_estatus" class="form-control">
-                            <option value="ACTIVO">ACTIVO</option>
-                            <option value="INACTIVO">INACTIVO</option>
+                            <option value="Activo">ACTIVO</option>
+                            <option value="Inactivo">INACTIVO</option>
                         </select>
                     </div>
                     <hr>
@@ -704,7 +784,11 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
                         <div class="col-md-3 form-group">
 							<label class="small font-weight-bold">CÓDIGO FORMA *</label>
 							<span class="info-icon" data-toggle="tooltip" title="Código abreviado de la forma de pago (Ej: ZELLE, P_MOVIL).">(?)</span>
-							<input type="text" name="f_codigo_formas_pago" id="f_codigo_formas_pago" class="form-control" maxlength="10" required>
+							<input type="text" name="f_codigo_formas_pago" id="f_codigo_formas_pago" class="form-control" maxlength="10" 
+								   style="text-transform: uppercase;" 
+								   oninput="this.value = this.value.toUpperCase()" 
+								   required>
+							
 						</div>                        
 						<div class="col-md-4 form-group">
 							<label class="small font-weight-bold">NOMBRE FORMA *</label>
@@ -1114,59 +1198,61 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 	
 	// Función para validar y enviar Forma de Pago
 	function validarGuardarForma() {
-		// 1. Obtener valores de campos maestros (leemos .val() por si están disabled)
 		const cod = $('#f_codigo_formas_pago').val().trim();
 		const nom = $('#f_nombre_formas_pago').val().trim();
 		const banco = $('#f_codigo_banco').val();
 		const moneda = $('#f_codigo_moneda').val();
 		const id_pk = $('#f_id_pk').val();
 
-		// 2. Validación de campos maestros obligatorios
+		// 1. Validaciones básicas
 		if (cod === "" || nom === "" || banco === "" || moneda === "") {
-			Swal.fire({
-				icon: 'error',
-				title: 'Atención',
-				text: 'Todos los campos marcados con (*) son obligatorios.',
-				confirmButtonColor: '#3085d6'
-			});
+			Swal.fire({ icon: 'error', title: 'Atención', text: 'Todos los campos marcados con (*) son obligatorios.' });
 			return;
 		}
 
-		// 3. NUEVA VALIDACIÓN: Si "Generar Comisión CxP" está marcado (valor 1)
+		// 2. Validación de campos CxP si el switch está activo
 		if ($('#f_generar_comision_bancaria_cxp').is(':checked')) {
 			const porc = $('#f_porcentaje_comision_bancaria').val().trim();
 			const fecha = $('#f_fecha_inicio_comision').val().trim();
 			const prod = $('#f_codigo_productos').val();
 
-			// Si alguno de los 3 campos está vacío, lanzamos alerta y detenemos
 			if (porc === "" || fecha === "" || prod === "" || fecha === "0000-00-00") {
-				Swal.fire({
-					icon: 'warning',
-					title: 'Campos CxP Requeridos',
-					text: 'Al activar "Generar Comisión CxP", el porcentaje, la fecha y el producto son obligatorios.',
-					confirmButtonColor: '#3085d6'
-				});
+				Swal.fire({ icon: 'warning', title: 'Campos CxP Requeridos', text: 'El porcentaje, la fecha y el producto son obligatorios cuando CxP está activo.' });
 				return;
 			}
-		}
 
-		// 4. Lógica de envío o validación de duplicados
-		if (id_pk === "") {
-			// Registro NUEVO: Validar duplicado antes de enviar
-			$.get(myAppUrl, { action: 'check_duplicate_forma', codigo_forma: cod }, function(res) {
-				if (res === 'existe') {
+			// 3. NUEVA VALIDACIÓN AJAX: Verificar proveedor del banco en la base de datos
+			$.get(myAppUrl, { action: 'verificar_banco_proveedor', codigo_banco: banco }, function(res) {
+				if (res === 'sin_proveedor') {
 					Swal.fire({
 						icon: 'error',
-						title: 'Código de Forma Duplicado',
-						text: 'El código de forma "' + cod + '" ya se encuentra registrado.',
+						title: 'Validación CxP Fallida',
+						text: 'El banco seleccionado no tiene un proveedor válido asignado (NULL o 0). Configure el banco antes de activar CxP.',
 						confirmButtonColor: '#3085d6'
 					});
+					// El modal NO se cierra porque no hemos llamado a enviarFormularioForma()
+				} else {
+					// Si el banco es válido, verificamos duplicados de código (lógica que ya tenías)
+					verificarDuplicadoYEnviar(id_pk, cod);
+				}
+			});
+		} else {
+			// Si CxP no está activo, validamos duplicados directamente
+			verificarDuplicadoYEnviar(id_pk, cod);
+		}
+	}
+
+	// Función auxiliar para no repetir código de duplicados
+	function verificarDuplicadoYEnviar(id_pk, cod) {
+		if (id_pk === "") {
+			$.get(myAppUrl, { action: 'check_duplicate_forma', codigo_forma: cod }, function(res) {
+				if (res === 'existe') {
+					Swal.fire({ icon: 'error', title: 'Código Duplicado', text: 'El código de forma "' + cod + '" ya existe.' });
 				} else {
 					enviarFormularioForma();
 				}
 			});
 		} else {
-			// EDICIÓN: Enviar directamente (la función auxiliar habilitará los campos)
 			enviarFormularioForma();
 		}
 	}
