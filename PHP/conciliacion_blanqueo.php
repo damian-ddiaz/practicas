@@ -3,7 +3,7 @@
 
 // PRODUCCION
 
-$host = '45.179.164.7';
+$host = '0.0.0.0';
 $db = 'database';
 $user = 'usuario';
 $pass = 'Pasword';
