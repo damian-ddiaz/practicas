@@ -1,19 +1,12 @@
 <?php
 
 // Conectar a la base de datos (asegúrate de usar tus credenciales)
-// DEVELOPER
-/*
-$host = '172.16.7.50';
-$db = 'webservices';
-$user = 'scryptcase';
-$pass = 'Mt*1329*--1';
-*/
-// PRODUCCION
 
-$host = '45.179.164.7';
-$db = 'webservices';
-$user = 'scryptcase';
-$pass = 'Mt*1329*--1';
+// PRODUCCION
+$host = '0.0.0.0';
+$db = 'database';
+$user = 'usuario';
+$pass = 'Pasword';
 
 $conn = new mysqli($host, $user, $pass, $db);
 
