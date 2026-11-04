@@ -1,6 +1,7 @@
 -- Optimizacion Webservices
 -- Tabla: banco_conciliacion_importarcion
     -- Create Origigal
+    
     CREATE TABLE `banco_conciliacion_importarcion` (
     `id_banco_conciliacion_importacion` int(11) NOT NULL AUTO_INCREMENT,
     `id_conciliacion` int(10) DEFAULT NULL,
@@ -264,7 +265,7 @@
     START TRANSACTION;
         UPDATE `banco_transferencias_movimientos`
         SET 
-            `referencia_original` = `referencia`,
+            `referencia_original` = `referencia`
         WHERE `referencia_original` IS NULL 
         OR `referencia_original` = '';
     COMMIT;
@@ -387,20 +388,6 @@
     GROUP BY  empresa, id_banco, referencia, fecha_transaccion, monto_bs, status
     HAVING total > 1
 
-    -- PASO 1
-    -- Crear campo de resplado de referencia a referencia_original, y referencia_transaccion a referencia_transaccion_original
-    ALTER TABLE `ventas_transacciones_detalles` 
-    ADD COLUMN `referencia_original` varchar(150) DEFAULT NULL AFTER `comision_procesada`;
-
-   -- PASO 2
-    START TRANSACTION;
-        UPDATE `ventas_transacciones_detalles`
-        SET 
-            `referencia_original` = `referencia`,
-        WHERE `referencia_original` IS NULL 
-        OR `referencia_original` = '';
-    COMMIT;
-
     SELECT 
         v1.id_ventas_transacciones_detalles,
         v1.empresa,
@@ -439,6 +426,20 @@
         v1.id_ventas_transacciones_detalles, v1.referencia, v1.fecha_transaccion;
     -- a la fecha 27-10-2026 en produccion hay 4245 registros duplicados
     -- FIN Tabla: ventas_transacciones_detalles
+
+    -- PASO 1
+    -- Crear campo de resplado de referencia a referencia_original, y referencia_transaccion a referencia_transaccion_original
+    ALTER TABLE `ventas_transacciones_detalles` 
+    ADD COLUMN `referencia_original` varchar(150) DEFAULT NULL AFTER `comision_procesada`;
+
+   -- PASO 2
+    START TRANSACTION;
+        UPDATE `ventas_transacciones_detalles`
+        SET 
+            `referencia_original` = `referencia`
+        WHERE `referencia_original` IS NULL 
+        OR `referencia_original` = '';
+    COMMIT;
 
     -- PASO 3
     -- update antes de realizar el ALTER TABLE LLAVE UNIQUEY
@@ -489,115 +490,143 @@
 
     -- Tabla: compras_transacciones_detalles
     -- Create Origigal
-        CREATE TABLE `compras_transacciones_detalles` (
-    `id_compras_transacciones_detalles` int(20) NOT NULL AUTO_INCREMENT,
-    `id_compra` int(11) NOT NULL,
-    `id_conciliacion` int(20) DEFAULT NULL,
-    `tipo_pago` varchar(20) NOT NULL,
-    `forma_pago` varchar(20) NOT NULL,
-    `tasa_cambio` decimal(10,2) NOT NULL,
-    `origen` varchar(255) DEFAULT NULL,
-    `cod_forma_pago` varchar(20) NOT NULL,
-    `referencia` varchar(50) NOT NULL,
-    `descripcion` longtext DEFAULT NULL,
-    `monto` decimal(10,2) NOT NULL,
-    `monto_bs` decimal(10,2) NOT NULL,
-    `fecha_transaccion` date NOT NULL,
-    `conciliado` varchar(20) NOT NULL,
-    `nro_conciliacion` varchar(50) NOT NULL,
-    `revisado` varchar(20) NOT NULL,
-    `status` varchar(20) NOT NULL,
-    `tipo_conciliacion` varchar(20) NOT NULL,
-    `fecha` date NOT NULL,
-    `empresa` varchar(20) NOT NULL,
-    `sucursal` varchar(20) NOT NULL,
-    `usuario` varchar(200) NOT NULL,
-    `usr_nivel` varchar(255) DEFAULT NULL,
-    `ip_estacion` varchar(60) NOT NULL,
-    `id_cxp_pago_resumen` int(11) DEFAULT NULL,
-    `id_factura_resumen` int(11) DEFAULT NULL,
-    `tipo_movimiento` varchar(20) DEFAULT NULL,
-    `id_cxp_documentos` int(11) DEFAULT NULL,
-    `id_banco` int(11) DEFAULT 0,
-    PRIMARY KEY (`id_compras_transacciones_detalles`),
-    KEY `idx_ctd_status_empresa_sucursal_tipo_pago_forma_pago` (`status`,`empresa`,`sucursal`,`tipo_pago`,`forma_pago`),
-    KEY `idx_ctd_id_compras_transacciones_detalles` (`id_compras_transacciones_detalles`)
-    ) ENGINE=InnoDB AUTO_INCREMENT=229885 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    CREATE TABLE `compras_transacciones_detalles` (
+        `id_compras_transacciones_detalles` int(20) NOT NULL AUTO_INCREMENT,
+        `id_compra` int(11) NOT NULL,
+        `id_conciliacion` int(20) DEFAULT NULL,
+        `tipo_pago` varchar(20) NOT NULL,
+        `forma_pago` varchar(20) NOT NULL,
+        `tasa_cambio` decimal(10,2) NOT NULL,
+        `origen` varchar(255) DEFAULT NULL,
+        `cod_forma_pago` varchar(20) NOT NULL,
+        `referencia` varchar(50) NOT NULL,
+        `descripcion` longtext DEFAULT NULL,
+        `monto` decimal(10,2) NOT NULL,
+        `monto_bs` decimal(10,2) NOT NULL,
+        `fecha_transaccion` date NOT NULL,
+        `conciliado` varchar(20) NOT NULL,
+        `nro_conciliacion` varchar(50) NOT NULL,
+        `revisado` varchar(20) NOT NULL,
+        `status` varchar(20) NOT NULL,
+        `tipo_conciliacion` varchar(20) NOT NULL,
+        `fecha` date NOT NULL,
+        `empresa` varchar(20) NOT NULL,
+        `sucursal` varchar(20) NOT NULL,
+        `usuario` varchar(200) NOT NULL,
+        `usr_nivel` varchar(255) DEFAULT NULL,
+        `ip_estacion` varchar(60) NOT NULL,
+        `id_cxp_pago_resumen` int(11) DEFAULT NULL,
+        `id_factura_resumen` int(11) DEFAULT NULL,
+        `tipo_movimiento` varchar(20) DEFAULT NULL,
+        `id_cxp_documentos` int(11) DEFAULT NULL,
+        `id_banco` int(11) DEFAULT 0,
+        PRIMARY KEY (`id_compras_transacciones_detalles`),
+        KEY `idx_ctd_status_empresa_sucursal_tipo_pago_forma_pago` (`status`,`empresa`,`sucursal`,`tipo_pago`,`forma_pago`),
+        KEY `idx_ctd_id_compras_transacciones_detalles` (`id_compras_transacciones_detalles`)
+        ) ENGINE=InnoDB AUTO_INCREMENT=229885 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 
-    -- Seleccion psrs Validar si Existen Registros Duplicados
-    select status, id_banco, fecha_transaccion, tipo_pago,forma_pago, origen, referencia, monto, monto_bs, empresa, count (*) as total
-    from  compras_transacciones_detalles  
-    GROUP BY empresa, id_banco, referencia, fecha_transaccion, monto_bs
-    HAVING total > 1
+        -- Seleccion psrs Validar si Existen Registros Duplicados
+        select status, id_banco, fecha_transaccion, tipo_pago,forma_pago, origen, referencia, monto, monto_bs, empresa, count (*) as total
+        from  compras_transacciones_detalles  
+        GROUP BY empresa, id_banco, referencia, fecha_transaccion, monto_bs
+        HAVING total > 1
 
-    SELECT 
-        c1.id_compras_transacciones_detalles,
-        c1.empresa,
-        c1.sucursal,
-        c1.tipo_pago,
-        c1.forma_pago,
-        c1.referencia AS referencia_original,
-        c1.fecha_transaccion,
-        c1.monto_bs,
-        IF(
-            c1.id_compras_transacciones_detalles = MIN(c1.id_compras_transacciones_detalles) OVER(
-                PARTITION BY c1.id_banco, c1.referencia, c1.fecha_transaccion, c1.monto_bs
-            ),
-            c1.referencia,
-            CONCAT(
-                c1.referencia, 
-                '-', 
-                ROW_NUMBER() OVER(
-                    PARTITION BY c1.id_banco, c1.referencia, c1.fecha_transaccion, c1.monto_bs 
-                    ORDER BY c1.id_compras_transacciones_detalles
-                ) - 1
-            )
-        ) AS nueva_referencia
-    FROM compras_transacciones_detalles c1
-    INNER JOIN (
         SELECT 
-            id_banco, referencia, fecha_transaccion, monto_bs
-        FROM compras_transacciones_detalles
-        GROUP BY id_banco, referencia, fecha_transaccion, monto_bs
-        HAVING COUNT(*) > 1
-    ) c2 ON c1.id_banco = c2.id_banco
-        AND c1.referencia = c2.referencia
-        AND c1.fecha_transaccion = c2.fecha_transaccion
-        AND c1.monto_bs = c2.monto_bs
-    ORDER BY 
-        c1.id_compras_transacciones_detalles, c1.referencia, c1.fecha_transaccion
-
-   -- update antes de realizar el ALTER TABLE
-    UPDATE compras_transacciones_detalles c1
-    INNER JOIN (
-        SELECT 
-            id_compras_transacciones_detalles,
+            c1.id_compras_transacciones_detalles,
+            c1.empresa,
+            c1.sucursal,
+            c1.tipo_pago,
+            c1.forma_pago,
+            c1.referencia AS referencia_original,
+            c1.fecha_transaccion,
+            c1.monto_bs,
             IF(
-                id_compras_transacciones_detalles = MIN(id_compras_transacciones_detalles) OVER(
-                    PARTITION BY id_banco, referencia, fecha_transaccion, monto_bs
+                c1.id_compras_transacciones_detalles = MIN(c1.id_compras_transacciones_detalles) OVER(
+                    PARTITION BY c1.empresa, c1.id_banco, c1.referencia, c1.fecha_transaccion, c1.monto_bs
                 ),
-                referencia,
+                c1.referencia,
                 CONCAT(
-                    referencia, 
+                    c1.referencia, 
                     '-', 
                     ROW_NUMBER() OVER(
-                        PARTITION BY id_banco, referencia, fecha_transaccion, monto_bs 
-                        ORDER BY id_compras_transacciones_detalles
+                        PARTITION BY c1.empresa, c1.id_banco, c1.referencia, c1.fecha_transaccion, c1.monto_bs 
+                        ORDER BY c1.id_compras_transacciones_detalles
                     ) - 1
                 )
             ) AS nueva_referencia
-        FROM compras_transacciones_detalles
-        WHERE referencia = '02073244' -- Filtro aplicado aquí
-    ) c2 ON c1.id_compras_transacciones_detalles = c2.id_compras_transacciones_detalles
-    SET c1.referencia = c2.nueva_referencia
-    WHERE c1.referencia <> c2.nueva_referencia;
+        FROM compras_transacciones_detalles c1
+        INNER JOIN (
+            SELECT 
+                empresa, id_banco, referencia, fecha_transaccion, monto_bs
+            FROM compras_transacciones_detalles
+            GROUP BY empresa, id_banco, referencia, fecha_transaccion, monto_bs
+            HAVING COUNT(*) > 1
+        ) c2 ON c1.empresa = c2.empresa
+            AND c1.id_banco = c2.id_banco
+            AND c1.referencia = c2.referencia
+            AND c1.fecha_transaccion = c2.fecha_transaccion
+            AND c1.monto_bs = c2.monto_bs
+        ORDER BY 
+            c1.id_compras_transacciones_detalles, c1.referencia, c1.fecha_transaccion
 
-    -- Alter Table, para aplicacion de nuevas llaves
+    -- PASO 1
+    -- Crear campo de resplado de referencia a referencia_original, y referencia_transaccion a referencia_transaccion_original
     ALTER TABLE `compras_transacciones_detalles` 
-    ADD UNIQUE KEY `uk_compras_transacciones_detalles_unica` (
-        `id_banco`, 
-        `referencia`, 
-        `fecha_transaccion`, 
-        `monto_bs`
-    );
+    ADD COLUMN `referencia_original` varchar(150) DEFAULT NULL AFTER `id_banco`;
+
+   -- PASO 2
+    START TRANSACTION;
+        UPDATE `compras_transacciones_detalles`
+        SET 
+            `referencia_original` = `referencia`
+        WHERE `referencia_original` IS NULL 
+        OR `referencia_original` = '';
+    COMMIT;
+
+    -- PASO 3
+    -- update antes de realizar el ALTER TABLE
+        UPDATE compras_transacciones_detalles t
+        INNER JOIN (
+            SELECT 
+                c1.id_compras_transacciones_detalles,
+                IF(
+                    c1.id_compras_transacciones_detalles = MIN(c1.id_compras_transacciones_detalles) OVER(
+                        PARTITION BY c1.empresa, c1.id_banco, c1.referencia, c1.fecha_transaccion, c1.monto_bs
+                    ),
+                    c1.referencia,
+                    CONCAT(
+                        c1.referencia, 
+                        '-', 
+                        ROW_NUMBER() OVER(
+                            PARTITION BY c1.empresa, c1.id_banco, c1.referencia, c1.fecha_transaccion, c1.monto_bs 
+                            ORDER BY c1.id_compras_transacciones_detalles
+                        ) - 1
+                    )
+                ) AS nueva_referencia
+            FROM compras_transacciones_detalles c1
+            INNER JOIN (
+                SELECT 
+                    empresa, id_banco, referencia, fecha_transaccion, monto_bs
+                FROM compras_transacciones_detalles
+                GROUP BY empresa, id_banco, referencia, fecha_transaccion, monto_bs
+                HAVING COUNT(*) > 1
+            ) c2 ON c1.empresa = c2.empresa
+                AND c1.id_banco = c2.id_banco
+                AND c1.referencia = c2.referencia
+                AND c1.fecha_transaccion = c2.fecha_transaccion
+                AND c1.monto_bs = c2.monto_bs
+        ) orig ON t.id_compras_transacciones_detalles = orig.id_compras_transacciones_detalles
+        SET t.referencia = orig.nueva_referencia
+        WHERE t.referencia <> orig.nueva_referencia;
+
+        -- PASO 4
+        -- Alter Table, para aplicacion de nuevas llaves
+        ALTER TABLE `compras_transacciones_detalles` 
+        ADD UNIQUE KEY `uk_compras_transacciones_detalles_unica` (
+            `empresa`
+            `id_banco`, 
+            `referencia`, 
+            `fecha_transaccion`, 
+            `monto_bs`
+        );
 
