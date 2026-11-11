@@ -1,4 +1,5 @@
-// 1. ASIGNACIÓN DE VARIABLES LOCALES SCRIPTCASE
+<?php
+    // 1. ASIGNACIÓN DE VARIABLES LOCALES SCRIPTCASE
 $usr_empresa  		= [usr_empresa];
 $usr_login    		= [usr_login];
 $usr_sucursal 		= [usr_sucursal];
@@ -823,32 +824,49 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 						</div>
                     </div> <!-- LINEA 2 FIN -->    
 
-                    <div class="row"> <!-- LINEA 3  -->    						
-						<div class="col-md-3 form-group text-center">
-							<label class="small font-weight-bold" style="white-space: nowrap;">Genera Comisión Bancaria Cliente</label>
-							<br>
-							<label class="ios-switch">
-								<input type="checkbox" name="f_generar_comision_bancaria" id="f_generar_comision_bancaria">
-								<span class="slider"></span>
-							</label>
-    					</div>																
+<div class="row"> <!-- LINEA 3  -->    						
+                        <!-- PRIMERA COLUMNA: FACTURACIÓN AUTOMÁTICA -->
+                        <div class="col-md-2 form-group text-center">
+                            <label class="small font-weight-bold" style="white-space: nowrap;">Fact. Automática</label>
+                            <span class="info-icon" data-toggle="tooltip" title="¿Esta forma de pago genera la factura de manera automática al registrarse?">(?)</span>
+                            <br>
+                            <label class="ios-switch">
+                                <input type="checkbox" name="f_fact_auto" id="f_fact_auto">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- SEGUNDA COLUMNA: COMISIÓN BANCARIA CLIENTE -->
+                        <div class="col-md-3 form-group text-center">
+                            <label class="small font-weight-bold" style="white-space: nowrap;">Genera Comisión Bancaria Cliente</label>
+                            <br>
+                            <label class="ios-switch">
+                                <input type="checkbox" name="f_generar_comision_bancaria" id="f_generar_comision_bancaria">
+                                <span class="slider"></span>
+                            </label>
+                        </div>																
+
+                        <!-- TERCERA COLUMNA: COMISIÓN -->
                         <div class="col-md-2 form-group">
-							<label class="small font-weight-bold">COMISIÓN</label>
-							 <span class="info-icon" data-toggle="tooltip" title="Porcentaje de comisión bancaria o de plataforma aplicado por cada transacción realizada.">(?)</span>
-							<input type="number" step="0.01" name="f_comision" id="f_comision" class="form-control">
-						</div>
+                            <label class="small font-weight-bold">COMISIÓN</label>
+                            <span class="info-icon" data-toggle="tooltip" title="Porcentaje de comisión bancaria o de plataforma aplicado por cada transacción realizada.">(?)</span>
+                            <input type="number" step="0.01" name="f_comision" id="f_comision" class="form-control">
+                        </div>
+
+                        <!-- CUARTA COLUMNA: % RETENCIÓN -->
                         <div class="col-md-2 form-group">
-							<label class="small font-weight-bold">% RETENCIÓN</label>
-							<span class="info-icon" data-toggle="tooltip" title="Porcentaje de retención de impuestos (IVA/ISLR) que se aplica automáticamente a esta forma de pago.">(?)</span>
-							<input type="number" step="0.01" name="f_porc_reten" id="f_porc_reten" class="form-control">
-						</div>
-                        <div class="col-md-5 form-group">
-							<label class="small font-weight-bold">MENSAJE CLIENTE</label>	
-							<span class="info-icon" data-toggle="tooltip" title="Instrucciones o notas aclaratorias que el cliente verá en su pantalla al momento de seleccionar este método de pago.">(?)</span>
-							<input type="text" name="f_mensaje_cliente" id="f_mensaje_cliente" class="form-control">
-						</div>
-                    </div> <!-- LINEA 3 FIN-->    
-					
+                            <label class="small font-weight-bold">% RETENCIÓN</label>
+                            <span class="info-icon" data-toggle="tooltip" title="Porcentaje de retención de impuestos (IVA/ISLR) que se aplica automáticamente a esta forma de pago.">(?)</span>
+                            <input type="number" step="0.01" name="f_porc_reten" id="f_porc_reten" class="form-control">
+                        </div>
+
+                        <!-- QUINTA COLUMNA: MENSAJE CLIENTE -->
+                        <div class="col-md-3 form-group">
+                            <label class="small font-weight-bold">MENSAJE CLIENTE</label>	
+                            <span class="info-icon" data-toggle="tooltip" title="Instrucciones o notas aclaratorias que el cliente verá en su pantalla al momento de seleccionar este método de pago.">(?)</span>
+                            <input type="text" name="f_mensaje_cliente" id="f_mensaje_cliente" class="form-control">
+                        </div>
+                    </div> <!-- LINEA 3 FIN-->				
 					
 					<!-- LINEA 4: CONFIGURACIÓN DE VISIBILIDAD -->
 					<div class="row border-top mt-3 pt-2"> 
@@ -1269,3 +1287,7 @@ sc_lookup(ds_productos_inv, "SELECT codigo_productos, nombre_productos
 </body>
 </html>
 <?php
+
+
+
+?>
